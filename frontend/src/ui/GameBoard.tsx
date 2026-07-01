@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { isConnected, type EuropaGameState, type TerritoryState } from "@europa/shared";
+import { getPowerScore, isConnected, type EuropaGameState, type EventCard, type TerritoryState } from "@europa/shared";
 import { MapCanvas } from "./MapCanvas";
 
 type BoardProps = {
@@ -26,7 +26,7 @@ const phaseHelp = {
 };
 
 type VisualEffect = {
-  type: "recruit" | "move" | "attack" | "conquer" | "fortify";
+  type: "recruit" | "move" | "attack" | "conquer" | "fortify" | "card";
   fromId?: string;
   toId?: string;
   territoryId?: string;
@@ -49,9 +49,13 @@ export function GameBoard({ G, ctx, moves, playerID, matchID, isActive }: BoardP
   const resources = playerTerritories.reduce((total, territory) => total + territory.resources, 0);
   const capitals = playerTerritories.filter((territory) => territory.isCapital).length;
   const enemyCapitals = Object.values(G.territories).filter((territory) => territory.isCapital && territory.ownerId && territory.ownerId !== playerID).length;
+  const playerHand = playerID ? G.hands[playerID as keyof typeof G.hands] ?? [] : [];
+  const cardTarget = target ?? selected;
+  const playerPower = playerID ? getPowerScore(G, playerID as "0" | "1" | "2" | "3" | "4" | "5") : 0;
   const shareUrl = `${window.location.origin}${window.location.pathname}?join=${matchID}`;
   const actionHint = getActionHint(G, selected, target, playerID, isActive);
   const capitalSummary = getCapitalSummary(G);
+  const powerSummary = getPowerSummary(G);
   const lastBattle = G.log.find((entry) => entry.includes(" ataca "));
 
   useEffect(() => {
@@ -154,6 +158,12 @@ export function GameBoard({ G, ctx, moves, playerID, matchID, isActive }: BoardP
     moves.fortify(selected.id);
   }
 
+  function playCard(card: EventCard) {
+    if (!cardTarget) return;
+    setVisualEffect({ type: "card", territoryId: cardTarget.id, nonce: Date.now() });
+    moves.playCard(card.id, cardTarget.id);
+  }
+
   function dispatchLobbyAction(action: "new" | "lobby") {
     window.dispatchEvent(new CustomEvent("europa:lobby-action", { detail: { action } }));
   }
@@ -231,10 +241,12 @@ export function GameBoard({ G, ctx, moves, playerID, matchID, isActive }: BoardP
             <p className="phase-help">{phaseHelp[G.phase]}</p>
             <div className="stats">
               <span>Recursos {resources}</span>
-              <span>Capitales {capitals}/3</span>
+              <span>Capitales {capitals}/{G.settings.targetCapitals}</span>
+              <span>Poder {playerPower}/{G.settings.powerTarget}</span>
               <span>Rivales {enemyCapitals}</span>
               <span>{isActive ? "Activo" : "Espera"}</span>
             </div>
+            <p className="small">Duracion {G.settings.duration} - max {G.settings.maxTurns} turnos</p>
           </section>
 
           <div className="territory-stack">
@@ -256,6 +268,32 @@ export function GameBoard({ G, ctx, moves, playerID, matchID, isActive }: BoardP
             <button className="primary wide" disabled={!isActive} onClick={() => moves.endPhase()}>
               Terminar fase
             </button>
+          </section>
+
+          <section className="panel-block cards-card">
+            <div className="split">
+              <div>
+                <p className="eyebrow">Cartas de evento</p>
+                <h2>{playerHand.length}/3 en mano</h2>
+              </div>
+              <span className={playerID && G.cardsPlayedThisTurn[playerID as keyof typeof G.cardsPlayedThisTurn] ? "card-used" : "card-ready"}>
+                {playerID && G.cardsPlayedThisTurn[playerID as keyof typeof G.cardsPlayedThisTurn] ? "Usada" : "Lista"}
+              </span>
+            </div>
+            <div className="card-list">
+              {playerHand.map((card) => (
+                <button
+                  className={`event-card card-${card.kind}`}
+                  disabled={!isActive || !canPlayCard(card, G, selected, target, playerID)}
+                  key={card.id}
+                  onClick={() => playCard(card)}
+                >
+                  <span>{card.title}</span>
+                  <small>{card.text}</small>
+                </button>
+              ))}
+              {playerHand.length === 0 && <p className="muted">Sin cartas disponibles.</p>}
+            </div>
           </section>
 
           <section className="panel-block battle-report">
@@ -281,6 +319,9 @@ export function GameBoard({ G, ctx, moves, playerID, matchID, isActive }: BoardP
           winner={ctx.gameover.winner}
           turnNumber={G.turnNumber}
           capitalSummary={capitalSummary}
+          powerSummary={powerSummary}
+          victoryReason={G.victoryReason}
+          settings={G.settings}
           onNewGame={() => dispatchLobbyAction("new")}
           onLobby={() => dispatchLobbyAction("lobby")}
         />
@@ -360,6 +401,24 @@ function getCapitalSummary(G: EuropaGameState) {
   return Array.from(counts.entries()).sort(([a], [b]) => a.localeCompare(b));
 }
 
+function getPowerSummary(G: EuropaGameState) {
+  return Array.from({ length: G.settings.numPlayers }, (_, index) => String(index) as "0" | "1" | "2" | "3" | "4" | "5")
+    .map((player) => [player, getPowerScore(G, player)] as [string, number])
+    .sort(([a], [b]) => a.localeCompare(b));
+}
+
+function canPlayCard(card: EventCard, G: EuropaGameState, selected: TerritoryState | undefined, target: TerritoryState | undefined, playerID: string | null) {
+  if (!playerID || G.cardsPlayedThisTurn[playerID as keyof typeof G.cardsPlayedThisTurn]) return false;
+  const cardTarget = target ?? selected;
+  if (!cardTarget) return false;
+  if (card.kind === "production" && G.phase !== "production") return false;
+  if (card.kind === "production" || card.kind === "reinforcement" || card.kind === "defense") {
+    return cardTarget.ownerId === playerID;
+  }
+  const hasOwnAdjacent = Object.values(G.territories).some((territory) => territory.ownerId === playerID && territory.connections.includes(cardTarget.id));
+  return cardTarget.ownerId !== playerID && hasOwnAdjacent;
+}
+
 function formatBattleTitle(entry: string) {
   return entry.split(":")[0] ?? entry;
 }
@@ -372,12 +431,18 @@ function VictoryModal({
   winner,
   turnNumber,
   capitalSummary,
+  powerSummary,
+  victoryReason,
+  settings,
   onNewGame,
   onLobby
 }: {
   winner: string;
   turnNumber: number;
   capitalSummary: [string, number][];
+  powerSummary: [string, number][];
+  victoryReason: string | null;
+  settings: EuropaGameState["settings"];
   onNewGame: () => void;
   onLobby: () => void;
 }) {
@@ -386,11 +451,18 @@ function VictoryModal({
       <section className="victory-modal">
         <p className="eyebrow">Tratado final</p>
         <h2 id="victory-title">Victoria del jugador {winner}</h2>
-        <p className="muted">La campana concluyo en el turno {turnNumber}.</p>
+        <p className="muted">La campana concluyo en el turno {turnNumber}. {victoryReason ?? "Objetivo estrategico completado."}</p>
         <div className="capital-table">
           {capitalSummary.map(([player, count]) => (
             <span className={player === winner ? "winner-row" : ""} key={player}>
               Jugador {player}: {count} capitales
+            </span>
+          ))}
+        </div>
+        <div className="capital-table">
+          {powerSummary.map(([player, score]) => (
+            <span className={player === winner ? "winner-row" : ""} key={player}>
+              Poder {player}: {score}/{settings.powerTarget}
             </span>
           ))}
         </div>

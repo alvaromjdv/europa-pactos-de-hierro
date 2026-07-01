@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { GAME_NAME } from "../util/lobby";
+import { GAME_NAME, type LobbySettings } from "../util/lobby";
 import { createMatch, joinMatch } from "../util/lobby";
 
 type Session = {
@@ -20,6 +20,7 @@ export function App({ serverUrl, GameClient }: AppProps) {
   const initialJoinCode = useMemo(() => new URLSearchParams(window.location.search).get("join") ?? "", []);
   const [playerName, setPlayerName] = useState(localStorage.getItem(storedNameKey) ?? "");
   const [joinCode, setJoinCode] = useState(initialJoinCode);
+  const [settings, setSettings] = useState<LobbySettings>({ numPlayers: 2, targetCapitals: 3, duration: "standard" });
   const [session, setSession] = useState<Session | null>(null);
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
@@ -52,7 +53,7 @@ export function App({ serverUrl, GameClient }: AppProps) {
 
       if (action === "new") {
         await withLobby(async () => {
-          const matchID = await createMatch(serverUrl);
+          const matchID = await createMatch(serverUrl, settings);
           const joined = await joinMatch(serverUrl, matchID, playerName.trim(), "0");
           return { ...joined, playerName: playerName.trim() };
         });
@@ -61,7 +62,7 @@ export function App({ serverUrl, GameClient }: AppProps) {
 
     window.addEventListener("europa:lobby-action", handleLobbyAction);
     return () => window.removeEventListener("europa:lobby-action", handleLobbyAction);
-  }, [playerName, serverUrl]);
+  }, [playerName, serverUrl, settings]);
 
   if (session) {
     return (
@@ -92,13 +93,48 @@ export function App({ serverUrl, GameClient }: AppProps) {
           />
         </label>
 
+        <section className="lobby-settings" aria-label="Configuracion de partida">
+          <label>
+            Jugadores
+            <select
+              value={settings.numPlayers}
+              onChange={(event) => setSettings((current) => ({ ...current, numPlayers: Number(event.target.value) as LobbySettings["numPlayers"] }))}
+            >
+              <option value={2}>2</option>
+              <option value={3}>3</option>
+              <option value={4}>4</option>
+            </select>
+          </label>
+          <label>
+            Capitales objetivo
+            <select
+              value={settings.targetCapitals}
+              onChange={(event) => setSettings((current) => ({ ...current, targetCapitals: Number(event.target.value) }))}
+            >
+              <option value={2}>2</option>
+              <option value={3}>3</option>
+              <option value={4}>4</option>
+            </select>
+          </label>
+          <label>
+            Duracion
+            <select
+              value={settings.duration}
+              onChange={(event) => setSettings((current) => ({ ...current, duration: event.target.value as LobbySettings["duration"] }))}
+            >
+              <option value="standard">Estandar</option>
+              <option value="quick">Rapida</option>
+            </select>
+          </label>
+        </section>
+
         <div className="lobby-actions">
           <button
             className="primary"
             disabled={busy}
             onClick={() =>
               withLobby(async () => {
-                const matchID = await createMatch(serverUrl);
+                const matchID = await createMatch(serverUrl, settings);
                 const joined = await joinMatch(serverUrl, matchID, playerName.trim(), "0");
                 return { ...joined, playerName: playerName.trim() };
               })
@@ -128,9 +164,10 @@ export function App({ serverUrl, GameClient }: AppProps) {
           </button>
         </div>
 
-        <p className="small">Servidor: {serverUrl} · Juego: {GAME_NAME}</p>
+        <p className="small">Servidor: {serverUrl} - Juego: {GAME_NAME}</p>
         {status && <p className="status">{status}</p>}
       </section>
     </main>
   );
 }
+

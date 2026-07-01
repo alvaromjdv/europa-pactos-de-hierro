@@ -14,7 +14,7 @@ type MapCanvasProps = {
 };
 
 type VisualEffect = {
-  type: "recruit" | "move" | "attack" | "conquer" | "fortify";
+  type: "recruit" | "move" | "attack" | "conquer" | "fortify" | "card";
   fromId?: string;
   toId?: string;
   territoryId?: string;

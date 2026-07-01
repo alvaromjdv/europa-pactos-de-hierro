@@ -34,7 +34,8 @@ body::before {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -61,7 +62,8 @@ button:disabled {
   box-shadow: none;
 }
 
-input {
+input,
+select {
   width: 100%;
   border: 1px solid rgba(170, 194, 224, 0.24);
   border-radius: 7px;
@@ -71,7 +73,8 @@ input {
   outline: none;
 }
 
-input:focus {
+input:focus,
+select:focus {
   border-color: rgba(116, 214, 255, 0.7);
   box-shadow: 0 0 0 3px rgba(116, 214, 255, 0.12);
 }
@@ -141,7 +144,8 @@ h2 {
 .split,
 .stats,
 .turn-summary,
-.modal-actions {
+.modal-actions,
+.lobby-settings {
   display: flex;
   gap: 0.7rem;
 }
@@ -152,6 +156,11 @@ h2 {
 
 .join-row button {
   flex: 0 0 auto;
+}
+
+.lobby-settings {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
 }
 
 .primary {
@@ -287,6 +296,10 @@ h2 {
   border-color: rgba(227, 73, 99, 0.26);
 }
 
+.cards-card {
+  border-color: rgba(141, 191, 255, 0.24);
+}
+
 .split {
   justify-content: space-between;
   align-items: start;
@@ -366,6 +379,62 @@ h2 {
 
 .action-button.fortify {
   border-color: rgba(255, 209, 102, 0.46);
+}
+
+.card-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.event-card {
+  display: grid;
+  gap: 0.22rem;
+  width: 100%;
+  text-align: left;
+}
+
+.event-card span {
+  font-weight: 800;
+}
+
+.event-card small {
+  color: #aebdd0;
+  font-size: 0.78rem;
+}
+
+.card-production {
+  border-color: rgba(112, 227, 160, 0.38);
+}
+
+.card-reinforcement {
+  border-color: rgba(116, 214, 255, 0.38);
+}
+
+.card-sabotage,
+.card-crisis {
+  border-color: rgba(255, 93, 115, 0.44);
+}
+
+.card-defense {
+  border-color: rgba(255, 209, 102, 0.42);
+}
+
+.card-ready,
+.card-used {
+  border-radius: 999px;
+  padding: 0.25rem 0.55rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.card-ready {
+  color: #8fe7b0;
+  background: rgba(32, 107, 72, 0.25);
+}
+
+.card-used {
+  color: #ffd166;
+  background: rgba(113, 82, 24, 0.28);
 }
 
 .log {
@@ -490,7 +559,10 @@ h2 {
   }
 
   .join-row,
+  .lobby-settings,
   .modal-actions {
+    display: grid;
+    grid-template-columns: 1fr;
     flex-direction: column;
   }
 

@@ -54,9 +54,13 @@ try {
   await waitForText(pageA, "Tu turno");
   await waitForText(pageB, "Esperando al jugador 0");
 
+  await pageA.getByRole("button", { name: /Impulso industrial/ }).click();
+  await waitForText(pageA, "juega Impulso industrial");
+  await waitForText(pageB, "juega Impulso industrial");
+
   await pageA.getByRole("button", { name: "Reclutar" }).click();
-  await waitForText(pageA, "Tropas 7");
-  await waitForText(pageB, "Tropas 7");
+  await waitForText(pageA, "Tropas 9");
+  await waitForText(pageB, "recluta 1 tropas");
 
   await pageA.getByRole("button", { name: "Terminar fase" }).click();
   await waitForText(pageA, "Movimiento");
@@ -76,6 +80,8 @@ try {
   await pageA.getByRole("button", { name: "Atacar" }).click();
   await waitForText(pageA, "Francia ataca Benelux");
   await waitForText(pageB, "Francia ataca Benelux");
+  await waitForText(pageA, "terreno +");
+  await waitForText(pageB, "terreno +");
 
   await pageA.getByRole("button", { name: "Terminar fase" }).click();
   await waitForText(pageA, "Consolidacion");

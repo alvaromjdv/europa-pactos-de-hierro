@@ -13,7 +13,6 @@ const EuropaClient = Client({
   game: EuropaGame,
   board: GameBoard,
   multiplayer: SocketIO({ server: SERVER_URL }),
-  numPlayers: 2,
   debug: false
 });
 

@@ -1,6 +1,7 @@
 import type { Game } from "boardgame.io";
 import { CAPITALS_TO_WIN, territoryDefinitions } from "./map";
-import type { BattleReport, EuropaGameState, MoveResult, Phase, PlayerID, TerritoryState } from "./types";
+import { eventCardById, eventCards } from "./cards";
+import type { BattleReport, EuropaGameState, EventCard, MatchSettings, MoveResult, Phase, PlayerID, TerritoryState } from "./types";
 
 const INVALID_MOVE = "INVALID_MOVE";
 const phaseOrder: Phase[] = ["production", "movement", "battle", "consolidation"];
@@ -8,12 +9,34 @@ const phaseOrder: Phase[] = ["production", "movement", "battle", "consolidation"
 const terrainDefenseBonus: Record<TerritoryState["terrain"], number> = {
   plains: 0,
   coast: 0,
-  forest: 1,
-  urban: 2,
-  mountain: 2
+  forest: 0,
+  urban: 1,
+  mountain: 1
 };
 
-export function createInitialState(): EuropaGameState {
+export const DEFAULT_SETTINGS: MatchSettings = {
+  numPlayers: 2,
+  targetCapitals: CAPITALS_TO_WIN,
+  duration: "standard",
+  powerTarget: 42,
+  maxTurns: 20
+};
+
+export function normalizeSettings(setupData?: Partial<MatchSettings>): MatchSettings {
+  const duration = setupData?.duration === "quick" ? "quick" : "standard";
+  const numPlayers = setupData?.numPlayers === 3 || setupData?.numPlayers === 4 ? setupData.numPlayers : 2;
+  const targetCapitals = Math.max(2, Math.min(6, Math.floor(setupData?.targetCapitals ?? (duration === "quick" ? 2 : CAPITALS_TO_WIN))));
+  return {
+    numPlayers,
+    targetCapitals,
+    duration,
+    powerTarget: Math.max(18, Math.floor(setupData?.powerTarget ?? (duration === "quick" ? 28 : 42))),
+    maxTurns: Math.max(8, Math.floor(setupData?.maxTurns ?? (duration === "quick" ? 12 : 20)))
+  };
+}
+
+export function createInitialState(setupData?: Partial<MatchSettings>): EuropaGameState {
+  const settings = normalizeSettings(setupData);
   const territories = Object.fromEntries(
     territoryDefinitions.map((territory) => [
       territory.id,
@@ -25,13 +48,24 @@ export function createInitialState(): EuropaGameState {
       }
     ])
   );
+  const deck = eventCards.map((card) => card.id);
+  const hands: EuropaGameState["hands"] = {};
+  for (let index = 0; index < settings.numPlayers; index += 1) {
+    const playerID = String(index) as PlayerID;
+    hands[playerID] = drawCards(deck, [], 2);
+  }
 
   return {
     territories,
     phase: "production",
     turnNumber: 1,
+    deck,
+    hands,
+    cardsPlayedThisTurn: {},
+    settings,
     log: ["Partida creada. Las potencias preparan sus pactos."],
-    winner: null
+    winner: null,
+    victoryReason: null
   };
 }
 
@@ -59,10 +93,53 @@ export function checkWinner(G: EuropaGameState): PlayerID | null {
   }
 
   for (const [playerID, count] of capitalCounts.entries()) {
-    if (count >= CAPITALS_TO_WIN) return playerID;
+    if (count >= G.settings.targetCapitals) {
+      G.victoryReason = `Control de ${count} capitales`;
+      return playerID;
+    }
+  }
+
+  for (const playerID of getActivePlayerIDs(G)) {
+    const power = getPowerScore(G, playerID);
+    if (power >= G.settings.powerTarget) {
+      G.victoryReason = `${power} puntos de poder`;
+      return playerID;
+    }
+  }
+
+  if (G.turnNumber > G.settings.maxTurns) {
+    const [leader] = getActivePlayerIDs(G).sort((a, b) => getPowerScore(G, b) - getPowerScore(G, a));
+    if (leader) {
+      G.victoryReason = `Liderazgo por poder tras ${G.settings.maxTurns} turnos`;
+      return leader;
+    }
   }
 
   return null;
+}
+
+export function getPowerScore(G: EuropaGameState, playerID: PlayerID): number {
+  return Object.values(G.territories)
+    .filter((territory) => territory.ownerId === playerID)
+    .reduce((total, territory) => total + territory.resources + (territory.isCapital ? 5 : 1), 0);
+}
+
+export function getTerrainDefenseBonus(territory: TerritoryState): number {
+  return terrainDefenseBonus[territory.terrain] + (territory.isCapital ? 1 : 0);
+}
+
+function getActivePlayerIDs(G: EuropaGameState): PlayerID[] {
+  return Array.from({ length: G.settings.numPlayers }, (_, index) => String(index) as PlayerID);
+}
+
+function drawCards(deck: string[], currentHand: EventCard[], amount: number): EventCard[] {
+  const nextHand = [...currentHand];
+  while (deck.length > 0 && nextHand.length < 3 && nextHand.length < currentHand.length + amount) {
+    const cardId = deck.shift();
+    const card = cardId ? eventCardById[cardId] : undefined;
+    if (card) nextHand.push(card);
+  }
+  return nextHand;
 }
 
 function ensureTurn(playerID: string | undefined, currentPlayer: string): MoveResult {
@@ -186,7 +263,8 @@ export function attackTerritory(
   const defenderRoll = rollDie();
   const fortifyBonus = to.fortified ? 2 : 0;
   const attackerPower = count + attackerRoll;
-  const defenderPower = to.troops + defenderRoll + terrainDefenseBonus[to.terrain] + fortifyBonus;
+  const terrainBonus = getTerrainDefenseBonus(to);
+  const defenderPower = to.troops + defenderRoll + terrainBonus + fortifyBonus;
   const attackerLosses = Math.min(count, Math.max(1, Math.floor(defenderPower / 4)));
   const defenderLosses = Math.min(to.troops, Math.max(1, Math.floor(attackerPower / 4)));
   const conquered = attackerPower > defenderPower && defenderLosses >= to.troops;
@@ -202,10 +280,66 @@ export function attackTerritory(
     to.fortified = false;
   }
 
-  const battle: BattleReport = { attackerRoll, defenderRoll, attackerPower, defenderPower, conquered, attackerLosses, defenderLosses };
-  pushLog(G, `${from.name} ataca ${to.name}: ${conquered ? "conquista" : "resiste"} (${attackerPower}-${defenderPower}).`);
+  const battle: BattleReport = { attackerRoll, defenderRoll, attackerPower, defenderPower, terrainDefenseBonus: terrainBonus, conquered, attackerLosses, defenderLosses };
+  pushLog(G, `${from.name} ataca ${to.name}: ${conquered ? "conquista" : "resiste"} (${attackerPower}-${defenderPower}, terreno +${terrainBonus}).`);
   G.winner = checkWinner(G);
   return { ok: true, battle };
+}
+
+export function playEventCard(
+  G: EuropaGameState,
+  currentPlayer: string,
+  playerID: string | undefined,
+  cardId: string,
+  targetId: string
+): MoveResult {
+  const turn = ensureTurn(playerID, currentPlayer);
+  if (!turn.ok) return turn;
+  if (!playerID) return { ok: false, reason: "Jugador invalido." };
+  const typedPlayer = playerID as PlayerID;
+  if (G.cardsPlayedThisTurn[typedPlayer]) return { ok: false, reason: "Ya jugaste una carta este turno." };
+
+  const hand = G.hands[typedPlayer] ?? [];
+  const card = hand.find((candidate) => candidate.id === cardId);
+  const target = G.territories[targetId];
+  if (!card) return { ok: false, reason: "Carta no disponible." };
+  if (!target) return { ok: false, reason: "Territorio inexistente." };
+
+  const ownAdjacent = Object.values(G.territories).some((territory) => territory.ownerId === typedPlayer && territory.connections.includes(targetId));
+
+  if (card.kind === "production") {
+    const phase = ensurePhase(G, "production");
+    if (!phase.ok) return phase;
+    if (target.ownerId !== typedPlayer) return { ok: false, reason: "La produccion requiere un territorio propio." };
+    target.troops += 2;
+  }
+
+  if (card.kind === "reinforcement") {
+    if (target.ownerId !== typedPlayer) return { ok: false, reason: "El refuerzo requiere un territorio propio." };
+    target.troops += card.id === "reserve-corps" ? 3 : 2;
+  }
+
+  if (card.kind === "defense") {
+    if (target.ownerId !== typedPlayer) return { ok: false, reason: "La defensa requiere un territorio propio." };
+    target.fortified = true;
+    if (card.id === "citadel-orders") target.troops += 1;
+  }
+
+  if (card.kind === "sabotage" || card.kind === "crisis") {
+    if (target.ownerId === typedPlayer) return { ok: false, reason: "El objetivo debe ser enemigo o neutral." };
+    if (!ownAdjacent) return { ok: false, reason: "El objetivo debe ser adyacente a un territorio propio." };
+    if (card.kind === "crisis" && target.isCapital) {
+      target.fortified = false;
+    } else {
+      target.troops = Math.max(1, target.troops - 1);
+    }
+  }
+
+  G.hands[typedPlayer] = hand.filter((candidate) => candidate.id !== cardId);
+  G.cardsPlayedThisTurn[typedPlayer] = true;
+  pushLog(G, `${typedPlayer} juega ${card.title} en ${target.name}.`);
+  G.winner = checkWinner(G);
+  return { ok: true };
 }
 
 export function advancePhase(G: EuropaGameState, currentPlayer: string, playerID: string | undefined): MoveResult {
@@ -217,6 +351,10 @@ export function advancePhase(G: EuropaGameState, currentPlayer: string, playerID
     G.turnNumber += 1;
     for (const territory of Object.values(G.territories)) {
       territory.fortified = false;
+    }
+    for (const activePlayer of getActivePlayerIDs(G)) {
+      G.cardsPlayedThisTurn[activePlayer] = false;
+      G.hands[activePlayer] = drawCards(G.deck, G.hands[activePlayer] ?? [], 1);
     }
   }
   pushLog(G, `Fase actual: ${G.phase}.`);
@@ -239,8 +377,9 @@ function invalid(result: MoveResult) {
 export const EuropaGame: Game<EuropaGameState> = {
   name: "europa-pactos-de-hierro",
   minPlayers: 2,
-  maxPlayers: 6,
-  setup: createInitialState,
+  maxPlayers: 4,
+  setup: ({ ctx }) => createInitialState((ctx as { setupData?: Partial<MatchSettings> }).setupData),
+  playerView: ({ G, playerID }) => getPlayerView(G, playerID as PlayerID | undefined),
   turn: {
     minMoves: 1,
     maxMoves: 100
@@ -255,6 +394,8 @@ export const EuropaGame: Game<EuropaGameState> = {
       invalid(attackTerritory(G, ctx.currentPlayer, playerID, fromId, toId, amount, () => random.Die(6))),
     fortify: ({ G, ctx, playerID }: MoveContext, territoryId: string) =>
       invalid(fortifyTerritory(G, ctx.currentPlayer, playerID, territoryId)),
+    playCard: ({ G, ctx, playerID }: MoveContext, cardId: string, targetId: string) =>
+      invalid(playEventCard(G, ctx.currentPlayer, playerID, cardId, targetId)),
     endPhase: ({ G, ctx, playerID, events }: MoveContext) => {
       const before = G.phase;
       const result = advancePhase(G, ctx.currentPlayer, playerID);
@@ -264,3 +405,37 @@ export const EuropaGame: Game<EuropaGameState> = {
     }
   }
 };
+
+export function getPlayerView(G: EuropaGameState, playerID?: PlayerID): EuropaGameState {
+  if (!playerID) return G;
+  const visible = new Set<string>();
+  for (const territory of Object.values(G.territories)) {
+    if (territory.ownerId === playerID) {
+      visible.add(territory.id);
+      territory.connections.forEach((connection) => visible.add(connection));
+    }
+  }
+
+  return {
+    ...G,
+    hands: { [playerID]: G.hands[playerID] ?? [] },
+    territories: Object.fromEntries(
+      Object.entries(G.territories).map(([id, territory]) => {
+        if (visible.has(id)) return [id, territory];
+        return [
+          id,
+          {
+            ...territory,
+            troops: approximateTroops(territory.troops)
+          }
+        ];
+      })
+    )
+  };
+}
+
+function approximateTroops(troops: number): number {
+  if (troops <= 2) return 2;
+  if (troops <= 5) return 4;
+  return 8;
+}

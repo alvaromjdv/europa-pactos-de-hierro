@@ -4,6 +4,25 @@ export type Phase = "production" | "movement" | "battle" | "consolidation";
 
 export type Terrain = "plains" | "mountain" | "forest" | "urban" | "coast";
 
+export type EventCardKind = "production" | "sabotage" | "reinforcement" | "defense" | "crisis";
+
+export type EventCard = {
+  id: string;
+  title: string;
+  kind: EventCardKind;
+  text: string;
+};
+
+export type GameDuration = "quick" | "standard";
+
+export type MatchSettings = {
+  numPlayers: 2 | 3 | 4;
+  targetCapitals: number;
+  duration: GameDuration;
+  powerTarget: number;
+  maxTurns: number;
+};
+
 export type TerritoryDefinition = {
   id: string;
   name: string;
@@ -27,6 +46,7 @@ export type BattleReport = {
   defenderRoll: number;
   attackerPower: number;
   defenderPower: number;
+  terrainDefenseBonus: number;
   conquered: boolean;
   attackerLosses: number;
   defenderLosses: number;
@@ -37,7 +57,12 @@ export type EuropaGameState = {
   phase: Phase;
   turnNumber: number;
   log: string[];
+  deck: string[];
+  hands: Partial<Record<PlayerID, EventCard[]>>;
+  cardsPlayedThisTurn: Partial<Record<PlayerID, boolean>>;
+  settings: MatchSettings;
   winner: PlayerID | null;
+  victoryReason: string | null;
 };
 
 export type MoveResult =

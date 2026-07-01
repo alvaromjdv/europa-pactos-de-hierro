@@ -1,5 +1,11 @@
 export const GAME_NAME = "europa-pactos-de-hierro";
 
+export type LobbySettings = {
+  numPlayers: 2 | 3 | 4;
+  targetCapitals: number;
+  duration: "quick" | "standard";
+};
+
 type CreateResponse = {
   gameID?: string;
   matchID?: string;
@@ -9,11 +15,11 @@ type JoinResponse = {
   playerCredentials: string;
 };
 
-export async function createMatch(serverUrl: string): Promise<string> {
+export async function createMatch(serverUrl: string, settings: LobbySettings = { numPlayers: 2, targetCapitals: 3, duration: "standard" }): Promise<string> {
   const response = await fetch(`${serverUrl}/games/${GAME_NAME}/create`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ numPlayers: 2 })
+    body: JSON.stringify({ numPlayers: settings.numPlayers, setupData: settings })
   });
 
   if (!response.ok) {
@@ -27,7 +33,7 @@ export async function createMatch(serverUrl: string): Promise<string> {
 }
 
 export async function joinMatch(serverUrl: string, matchID: string, playerName: string, preferredPlayerID: string) {
-  const attempts = [...new Set([preferredPlayerID, "1", "0"])];
+  const attempts = [...new Set([preferredPlayerID, "1", "2", "3", "0"])];
 
   for (const playerID of attempts) {
     const response = await fetch(`${serverUrl}/games/${GAME_NAME}/${matchID}/join`, {
