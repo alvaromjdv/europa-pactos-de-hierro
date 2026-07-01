@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { isConnected, type EuropaGameState, type TerritoryState } from "@europa/shared";
 import { MapCanvas } from "./MapCanvas";
 
@@ -18,10 +18,28 @@ const phaseLabels = {
   consolidation: "Consolidacion"
 };
 
+const phaseHelp = {
+  production: "Refuerza territorios propios antes de avanzar.",
+  movement: "Elige origen y destino propio conectado.",
+  battle: "Elige un origen propio y un objetivo enemigo adyacente.",
+  consolidation: "Fortifica una posicion clave y cierra el turno."
+};
+
+type VisualEffect = {
+  type: "recruit" | "move" | "attack" | "conquer" | "fortify";
+  fromId?: string;
+  toId?: string;
+  territoryId?: string;
+  nonce: number;
+};
+
 export function GameBoard({ G, ctx, moves, playerID, matchID, isActive }: BoardProps) {
   const [selectedId, setSelectedId] = useState<string>("iberia");
   const [targetId, setTargetId] = useState<string>("");
   const [amount, setAmount] = useState(1);
+  const [toast, setToast] = useState("");
+  const [visualEffect, setVisualEffect] = useState<VisualEffect | null>(null);
+  const previousTerritories = useRef(G.territories);
   const selected = G.territories[selectedId];
   const target = targetId ? G.territories[targetId] : undefined;
   const playerTerritories = useMemo(
@@ -30,7 +48,57 @@ export function GameBoard({ G, ctx, moves, playerID, matchID, isActive }: BoardP
   );
   const resources = playerTerritories.reduce((total, territory) => total + territory.resources, 0);
   const capitals = playerTerritories.filter((territory) => territory.isCapital).length;
+  const enemyCapitals = Object.values(G.territories).filter((territory) => territory.isCapital && territory.ownerId && territory.ownerId !== playerID).length;
   const shareUrl = `${window.location.origin}${window.location.pathname}?join=${matchID}`;
+  const actionHint = getActionHint(G, selected, target, playerID, isActive);
+  const capitalSummary = getCapitalSummary(G);
+  const lastBattle = G.log.find((entry) => entry.includes(" ataca "));
+
+  useEffect(() => {
+    const previous = previousTerritories.current;
+    const current = G.territories;
+
+    for (const territory of Object.values(current)) {
+      const before = previous[territory.id];
+      if (!before) continue;
+
+      if (before.ownerId !== territory.ownerId) {
+        setVisualEffect({ type: "conquer", territoryId: territory.id, nonce: Date.now() });
+        break;
+      }
+
+      if (territory.troops > before.troops && territory.ownerId === playerID) {
+        setVisualEffect({ type: "recruit", territoryId: territory.id, nonce: Date.now() });
+        break;
+      }
+
+      if (territory.troops < before.troops) {
+        const destination = Object.values(current).find((candidate) => {
+          const previousCandidate = previous[candidate.id];
+          return previousCandidate && candidate.troops > previousCandidate.troops && candidate.ownerId === territory.ownerId;
+        });
+        if (destination) {
+          setVisualEffect({ type: "move", fromId: territory.id, toId: destination.id, nonce: Date.now() });
+        } else {
+          setVisualEffect({ type: "attack", territoryId: territory.id, nonce: Date.now() });
+        }
+        break;
+      }
+
+      if (!before.fortified && territory.fortified) {
+        setVisualEffect({ type: "fortify", territoryId: territory.id, nonce: Date.now() });
+        break;
+      }
+    }
+
+    previousTerritories.current = current;
+  }, [G.territories, playerID]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timeout = window.setTimeout(() => setToast(""), 2400);
+    return () => window.clearTimeout(timeout);
+  }, [toast]);
 
   function selectTerritory(id: string) {
     const clicked = G.territories[id];
@@ -59,6 +127,35 @@ export function GameBoard({ G, ctx, moves, playerID, matchID, isActive }: BoardP
 
   function copyLink() {
     void navigator.clipboard?.writeText(shareUrl);
+    setToast("Link de partida copiado.");
+  }
+
+  function recruitSelected() {
+    if (!selected) return;
+    setVisualEffect({ type: "recruit", territoryId: selected.id, nonce: Date.now() });
+    moves.recruit(selected.id, amount);
+  }
+
+  function moveSelected() {
+    if (!selected || !target) return;
+    setVisualEffect({ type: "move", fromId: selected.id, toId: target.id, nonce: Date.now() });
+    moves.move(selected.id, target.id, amount);
+  }
+
+  function attackSelected() {
+    if (!selected || !target) return;
+    setVisualEffect({ type: "attack", fromId: selected.id, toId: target.id, nonce: Date.now() });
+    moves.attack(selected.id, target.id, amount);
+  }
+
+  function fortifySelected() {
+    if (!selected) return;
+    setVisualEffect({ type: "fortify", territoryId: selected.id, nonce: Date.now() });
+    moves.fortify(selected.id);
+  }
+
+  function dispatchLobbyAction(action: "new" | "lobby") {
+    window.dispatchEvent(new CustomEvent("europa:lobby-action", { detail: { action } }));
   }
 
   function renderAction() {
@@ -67,7 +164,7 @@ export function GameBoard({ G, ctx, moves, playerID, matchID, isActive }: BoardP
 
     if (G.phase === "production") {
       return (
-        <button disabled={selected.ownerId !== playerID} onClick={() => moves.recruit(selected.id, amount)}>
+        <button className="action-button recruit" disabled={selected.ownerId !== playerID} onClick={recruitSelected}>
           Reclutar
         </button>
       );
@@ -75,7 +172,7 @@ export function GameBoard({ G, ctx, moves, playerID, matchID, isActive }: BoardP
 
     if (G.phase === "movement") {
       return (
-        <button disabled={!target || selected.ownerId !== playerID || target.ownerId !== playerID} onClick={() => target && moves.move(selected.id, target.id, amount)}>
+        <button className="action-button move" disabled={!target || selected.ownerId !== playerID || target.ownerId !== playerID} onClick={moveSelected}>
           Mover
         </button>
       );
@@ -83,14 +180,14 @@ export function GameBoard({ G, ctx, moves, playerID, matchID, isActive }: BoardP
 
     if (G.phase === "battle") {
       return (
-        <button disabled={!target || selected.ownerId !== playerID || target.ownerId === playerID} onClick={() => target && moves.attack(selected.id, target.id, amount)}>
+        <button className="action-button attack" disabled={!target || selected.ownerId !== playerID || target.ownerId === playerID} onClick={attackSelected}>
           Atacar
         </button>
       );
     }
 
     return (
-      <button disabled={selected.ownerId !== playerID} onClick={() => moves.fortify(selected.id)}>
+      <button className="action-button fortify" disabled={selected.ownerId !== playerID} onClick={fortifySelected}>
         Fortificar
       </button>
     );
@@ -98,85 +195,210 @@ export function GameBoard({ G, ctx, moves, playerID, matchID, isActive }: BoardP
 
   return (
     <main className="game-shell">
+      {toast && <div className="toast">{toast}</div>}
       <header className="topbar">
         <div>
           <p className="eyebrow">Partida {matchID}</p>
           <h1>Europa: Pactos de Hierro</h1>
         </div>
         <div className="turn-summary">
-          <span>Jugador {playerID}</span>
-          <span>{phaseLabels[G.phase]}</span>
+          <span className="player-chip">Jugador {playerID}</span>
+          <span className={`phase-chip phase-${G.phase}`}>{phaseLabels[G.phase]}</span>
           <span>Turno {G.turnNumber}</span>
         </div>
       </header>
 
       <section className="war-room">
-        <MapCanvas G={G} selectedId={selectedId} targetId={targetId} playerID={playerID} onSelect={selectTerritory} />
+        <MapCanvas
+          G={G}
+          selectedId={selectedId}
+          targetId={targetId}
+          playerID={playerID}
+          phase={G.phase}
+          effect={visualEffect}
+          onSelect={selectTerritory}
+        />
 
         <aside className="side-panel">
-          <section className="panel-block">
+          <section className="panel-block command-card">
             <div className="split">
               <div>
-                <p className="eyebrow">Jugador activo</p>
+                <p className="eyebrow">Mando operativo</p>
                 <h2>{ctx.currentPlayer === playerID ? "Tu turno" : `Jugador ${ctx.currentPlayer}`}</h2>
               </div>
               <button className="icon-button" onClick={copyLink} title="Copiar link de partida">Copiar</button>
             </div>
+            <p className="phase-help">{phaseHelp[G.phase]}</p>
             <div className="stats">
               <span>Recursos {resources}</span>
               <span>Capitales {capitals}/3</span>
+              <span>Rivales {enemyCapitals}</span>
               <span>{isActive ? "Activo" : "Espera"}</span>
             </div>
           </section>
 
-          <TerritoryPanel title="Seleccionado" territory={selected} />
-          <TerritoryPanel title="Objetivo" territory={target} />
+          <div className="territory-stack">
+            <TerritoryPanel title="Origen" territory={selected} active />
+            <TerritoryPanel title="Destino" territory={target} />
+          </div>
 
-          <section className="panel-block">
+          <section className="panel-block action-card">
+            <div>
+              <p className="eyebrow">Accion disponible</p>
+              <h2>{phaseLabels[G.phase]}</h2>
+            </div>
             <label>
               Tropas
               <input type="number" min={1} max={99} value={amount} onChange={(event) => setAmount(Number(event.target.value))} />
             </label>
             <div className="action-row">{renderAction()}</div>
+            <p className={actionHint.ok ? "hint ok" : "hint"}>{actionHint.message}</p>
             <button className="primary wide" disabled={!isActive} onClick={() => moves.endPhase()}>
               Terminar fase
             </button>
           </section>
 
-          {ctx.gameover?.winner && (
-            <section className="panel-block victory">
-              <h2>Victoria del jugador {ctx.gameover.winner}</h2>
-            </section>
-          )}
+          <section className="panel-block battle-report">
+            <p className="eyebrow">Ultimo combate</p>
+            <h2>{lastBattle ? formatBattleTitle(lastBattle) : "Sin enfrentamientos"}</h2>
+            <p className="muted">{lastBattle ? formatBattleDetail(lastBattle) : "Los movimientos militares apareceran aqui cuando empiece la fase de batalla."}</p>
+          </section>
 
           <section className="panel-block log">
-            <h2>Historial</h2>
+            <div className="split">
+              <h2>Historial</h2>
+              <span className="log-count">{G.log.length}</span>
+            </div>
             {G.log.map((entry, index) => (
-              <p key={`${entry}-${index}`}>{entry}</p>
+              <p className={entry.includes(" ataca ") ? "battle-entry" : ""} key={`${entry}-${index}`}>{entry}</p>
             ))}
           </section>
         </aside>
       </section>
+
+      {ctx.gameover?.winner && (
+        <VictoryModal
+          winner={ctx.gameover.winner}
+          turnNumber={G.turnNumber}
+          capitalSummary={capitalSummary}
+          onNewGame={() => dispatchLobbyAction("new")}
+          onLobby={() => dispatchLobbyAction("lobby")}
+        />
+      )}
     </main>
   );
 }
 
-function TerritoryPanel({ title, territory }: { title: string; territory?: TerritoryState }) {
+function TerritoryPanel({ title, territory, active = false }: { title: string; territory?: TerritoryState; active?: boolean }) {
   return (
-    <section className="panel-block">
+    <section className={`panel-block territory-card ${active ? "active" : ""}`}>
       <p className="eyebrow">{title}</p>
       {territory ? (
         <>
-          <h2>{territory.name}</h2>
+          <div className="territory-heading">
+            <h2>{territory.name}</h2>
+            {territory.isCapital && <span className="capital-badge">Capital</span>}
+          </div>
           <div className="stats">
             <span>Dueno {territory.ownerId ?? "Neutral"}</span>
             <span>Tropas {territory.troops}</span>
-            <span>{territory.terrain}</span>
+            <span>Recursos {territory.resources}</span>
+            <span>{terrainLabel(territory.terrain)}</span>
           </div>
+          <p className="connections">Conecta: {territory.connections.length}</p>
         </>
       ) : (
-        <p className="muted">Sin territorio.</p>
+        <p className="muted">Elige un territorio conectado para completar la orden.</p>
       )}
     </section>
+  );
+}
+
+function getActionHint(G: EuropaGameState, selected: TerritoryState | undefined, target: TerritoryState | undefined, playerID: string | null, isActive: boolean) {
+  if (!isActive) return { ok: false, message: "Esperando al jugador activo." };
+  if (!selected) return { ok: false, message: "Selecciona un territorio propio." };
+  if (G.phase === "production") {
+    return selected.ownerId === playerID
+      ? { ok: true, message: "Puedes reclutar en este territorio." }
+      : { ok: false, message: "Selecciona un territorio propio para reclutar." };
+  }
+  if (G.phase === "movement") {
+    if (selected.ownerId !== playerID) return { ok: false, message: "El origen debe ser tuyo." };
+    if (!target) return { ok: false, message: "Selecciona un destino propio conectado." };
+    if (target.ownerId !== playerID) return { ok: false, message: "El destino de movimiento debe ser propio." };
+    return { ok: true, message: "Orden de movimiento lista." };
+  }
+  if (G.phase === "battle") {
+    if (selected.ownerId !== playerID) return { ok: false, message: "El ataque debe salir de un territorio propio." };
+    if (!target) return { ok: false, message: "Selecciona un objetivo enemigo adyacente." };
+    if (target.ownerId === playerID) return { ok: false, message: "No puedes atacar un territorio propio." };
+    return { ok: true, message: "Ataque preparado contra objetivo adyacente." };
+  }
+  return selected.ownerId === playerID
+    ? { ok: true, message: "Puedes fortificar este territorio." }
+    : { ok: false, message: "Selecciona un territorio propio para fortificar." };
+}
+
+function terrainLabel(terrain: TerritoryState["terrain"]) {
+  const labels = {
+    plains: "Llanura",
+    mountain: "Montana",
+    forest: "Bosque",
+    urban: "Urbano",
+    coast: "Costa"
+  };
+  return labels[terrain];
+}
+
+function getCapitalSummary(G: EuropaGameState) {
+  const counts = new Map<string, number>();
+  for (const territory of Object.values(G.territories)) {
+    if (territory.isCapital && territory.ownerId) {
+      counts.set(territory.ownerId, (counts.get(territory.ownerId) ?? 0) + 1);
+    }
+  }
+  return Array.from(counts.entries()).sort(([a], [b]) => a.localeCompare(b));
+}
+
+function formatBattleTitle(entry: string) {
+  return entry.split(":")[0] ?? entry;
+}
+
+function formatBattleDetail(entry: string) {
+  return entry.includes(":") ? entry.split(":").slice(1).join(":").trim() : entry;
+}
+
+function VictoryModal({
+  winner,
+  turnNumber,
+  capitalSummary,
+  onNewGame,
+  onLobby
+}: {
+  winner: string;
+  turnNumber: number;
+  capitalSummary: [string, number][];
+  onNewGame: () => void;
+  onLobby: () => void;
+}) {
+  return (
+    <div className="victory-backdrop" role="dialog" aria-modal="true" aria-labelledby="victory-title">
+      <section className="victory-modal">
+        <p className="eyebrow">Tratado final</p>
+        <h2 id="victory-title">Victoria del jugador {winner}</h2>
+        <p className="muted">La campana concluyo en el turno {turnNumber}.</p>
+        <div className="capital-table">
+          {capitalSummary.map(([player, count]) => (
+            <span className={player === winner ? "winner-row" : ""} key={player}>
+              Jugador {player}: {count} capitales
+            </span>
+          ))}
+        </div>
+        <div className="modal-actions">
+          <button className="primary" onClick={onNewGame}>Nueva partida</button>
+          <button onClick={onLobby}>Volver al lobby</button>
+        </div>
+      </section>
+    </div>
   );
 }

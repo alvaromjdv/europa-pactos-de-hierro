@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { GAME_NAME } from "../util/lobby";
 import { createMatch, joinMatch } from "../util/lobby";
 
@@ -41,6 +41,27 @@ export function App({ serverUrl, GameClient }: AppProps) {
       setBusy(false);
     }
   }
+
+  useEffect(() => {
+    async function handleLobbyAction(event: Event) {
+      const action = (event as CustomEvent<{ action: "new" | "lobby" }>).detail?.action;
+      if (action === "lobby") {
+        setSession(null);
+        return;
+      }
+
+      if (action === "new") {
+        await withLobby(async () => {
+          const matchID = await createMatch(serverUrl);
+          const joined = await joinMatch(serverUrl, matchID, playerName.trim(), "0");
+          return { ...joined, playerName: playerName.trim() };
+        });
+      }
+    }
+
+    window.addEventListener("europa:lobby-action", handleLobbyAction);
+    return () => window.removeEventListener("europa:lobby-action", handleLobbyAction);
+  }, [playerName, serverUrl]);
 
   if (session) {
     return (
