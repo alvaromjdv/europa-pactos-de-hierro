@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: europa-pactos-de-hierro-server
+    env: node
+    plan: starter
+    buildCommand: npm install && npm --workspace @europa/server run build
+    startCommand: npm run start:server
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATA_DIR
+        value: /var/data
+      - key: FRONTEND_ORIGIN
+        sync: false
+      - key: SERVER_ORIGIN
+        sync: false

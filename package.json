@@ -15,7 +15,9 @@
     "build": "npm --workspaces run build",
     "test": "npm --workspace @europa/shared test",
     "test:e2e": "node scripts/verify-multiplayer.mjs",
-    "validate": "npm run test && npm --workspace @europa/server run build && npm --workspace @europa/frontend run build"
+    "validate": "npm run test && npm --workspace @europa/server run build && npm --workspace @europa/frontend run build",
+    "start:server": "npm --workspace @europa/server run start",
+    "start:frontend": "npm --workspace @europa/frontend run preview"
   },
   "devDependencies": {
     "@types/node": "^20.14.15",

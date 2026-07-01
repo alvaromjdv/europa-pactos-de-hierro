@@ -7,7 +7,7 @@ import { App } from "./ui/App";
 import { GameBoard } from "./ui/GameBoard";
 import "./styles.css";
 
-const SERVER_URL = import.meta.env.VITE_SERVER_URL ?? "http://localhost:8000";
+const SERVER_URL = import.meta.env.VITE_SERVER_ORIGIN ?? import.meta.env.VITE_SERVER_URL ?? "http://localhost:8000";
 
 const EuropaClient = Client({
   game: EuropaGame,
