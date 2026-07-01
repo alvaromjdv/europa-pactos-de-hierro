@@ -1,0 +1,28 @@
+{
+  "name": "europa-pactos-de-hierro",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "shared",
+    "server",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "npm-run-all --parallel dev:server dev:frontend",
+    "dev:server": "npm --workspace @europa/server run dev",
+    "dev:frontend": "npm --workspace @europa/frontend run dev",
+    "build": "npm --workspaces run build",
+    "test": "npm --workspace @europa/shared test",
+    "test:e2e": "node scripts/verify-multiplayer.mjs",
+    "validate": "npm run test && npm --workspace @europa/server run build && npm --workspace @europa/frontend run build"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.15",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "npm-run-all": "^4.1.5",
+    "playwright": "^1.61.1",
+    "typescript": "^5.5.4"
+  }
+}

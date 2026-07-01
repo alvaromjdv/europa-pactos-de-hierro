@@ -1,0 +1,22 @@
+{
+  "name": "@europa/frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 0.0.0.0"
+  },
+  "dependencies": {
+    "@europa/shared": "file:../shared",
+    "@vitejs/plugin-react": "^4.3.1",
+    "boardgame.io": "^0.50.2",
+    "pixi.js": "^7.4.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "vite": "^5.4.2"
+  }
+}

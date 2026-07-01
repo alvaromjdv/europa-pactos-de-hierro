@@ -1,0 +1,19 @@
+{
+  "name": "@europa/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc --noEmit",
+    "start": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@europa/shared": "file:../shared",
+    "boardgame.io": "^0.50.2",
+    "node-persist": "^3.1.3"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.3"
+  }
+}
