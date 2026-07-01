@@ -52,7 +52,7 @@ export function HttpGameClient({ serverUrl, matchID, playerID, credentials }: Ht
   }, [fetchMatch]);
 
   const moves = useMemo(() => {
-    async function send(type: string, args: unknown[] = []) {
+    async function send(type: string, args: unknown[] = [], retryOnConflict = true) {
       const current = matchRef.current;
       if (!current) return;
 
@@ -70,7 +70,13 @@ export function HttpGameClient({ serverUrl, matchID, playerID, credentials }: Ht
         });
         const payload = await response.json();
         if (response.status === 409 && payload.match) {
-          setMatch(payload.match as MatchPayload);
+          const nextMatch = payload.match as MatchPayload;
+          setMatch(nextMatch);
+          matchRef.current = nextMatch;
+          if (retryOnConflict) {
+            await send(type, args, false);
+            return;
+          }
           throw new Error(payload.error ?? "La partida cambio. Reintentando con estado actualizado.");
         }
         if (!response.ok) throw new Error(payload.error ?? "Movimiento rechazado.");
