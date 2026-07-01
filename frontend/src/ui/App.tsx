@@ -78,10 +78,19 @@ export function App({ serverUrl, GameClient }: AppProps) {
     <main className="login-shell">
       <section className="login-panel">
         <div>
-          <p className="eyebrow">Multiplayer por turnos</p>
+          <p className="eyebrow">Tablero online de conquista</p>
           <h1>Europa: Pactos de Hierro</h1>
-          <p className="subtitle">Crea una partida 1v1 o entra con codigo para disputar capitales, tropas y fases sincronizadas.</p>
+          <p className="subtitle">Crea una partida, comparte el codigo y conquista capitales por turnos: refuerza, ataca y fortifica.</p>
         </div>
+
+        <section className="lobby-guide">
+          <p className="eyebrow">Como se gana</p>
+          <div className="turn-guide">
+            <div className="guide-row active"><span>1</span><p>Controla capitales enemigas y protege las tuyas.</p></div>
+            <div className="guide-row"><span>2</span><p>Usa tropas para atacar territorios adyacentes.</p></div>
+            <div className="guide-row"><span>3</span><p>Gana al alcanzar el objetivo de capitales o poder.</p></div>
+          </div>
+        </section>
 
         <label>
           Nombre
@@ -164,7 +173,7 @@ export function App({ serverUrl, GameClient }: AppProps) {
           </button>
         </div>
 
-        <p className="small">Servidor: {serverUrl} - Juego: {GAME_NAME}</p>
+        <p className="small">Servidor: {serverUrl || "Netlify"} - Juego: {GAME_NAME}</p>
         {status && <p className="status">{status}</p>}
       </section>
     </main>

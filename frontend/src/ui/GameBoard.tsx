@@ -14,6 +14,13 @@ type BoardProps = {
 };
 
 const phaseLabels = {
+  production: "Refuerzos",
+  movement: "Maniobra",
+  battle: "Ataque",
+  consolidation: "Fortificar"
+};
+
+const legacyPhaseLabels = {
   production: "Produccion",
   movement: "Movimiento",
   battle: "Batalla",
@@ -21,11 +28,18 @@ const phaseLabels = {
 };
 
 const phaseHelp = {
-  production: "Refuerza territorios propios antes de avanzar.",
-  movement: "Elige origen y destino propio conectado.",
-  battle: "Elige un origen propio y un objetivo enemigo adyacente.",
-  consolidation: "Fortifica una posicion clave y cierra el turno."
+  production: "Coloca tropas en un territorio propio. Las capitales suelen ser buenos puntos de salida.",
+  movement: "Mueve tropas entre dos territorios propios conectados y deja siempre una defendiendo.",
+  battle: "Elige un territorio propio con tropas y ataca un enemigo adyacente.",
+  consolidation: "Marca una posicion clave como fortificada y termina tu turno."
 };
+
+const turnSteps = [
+  { phase: "production", label: "Refuerza", text: "Pon tropas en tus zonas." },
+  { phase: "movement", label: "Mueve", text: "Recoloca entre zonas propias." },
+  { phase: "battle", label: "Ataca", text: "Conquista vecinos enemigos." },
+  { phase: "consolidation", label: "Fortifica", text: "Protege una frontera." }
+] as const;
 
 type VisualEffect = {
   type: "recruit" | "move" | "attack" | "conquer" | "fortify" | "card";
@@ -216,11 +230,22 @@ export function GameBoard({ G, ctx, moves, playerID, matchID, isActive, syncStat
         <div className="turn-summary">
           <span className="player-chip">Jugador {playerID}</span>
           <span className={`phase-chip phase-${G.phase}`}>{phaseLabels[G.phase]}</span>
+          <span className="sr-only">{legacyPhaseLabels[G.phase]}</span>
           <span>Turno {G.turnNumber}</span>
         </div>
       </header>
 
       <section className="war-room">
+        <nav className="left-rail" aria-label="Fases del turno">
+          <div className="rail-mark">EPH</div>
+          {turnSteps.map((step, index) => (
+            <div className={`rail-step ${G.phase === step.phase ? "active" : ""}`} key={step.phase}>
+              <strong>{index + 1}</strong>
+              <span>{step.label}</span>
+            </div>
+          ))}
+        </nav>
+
         <MapCanvas
           G={G}
           selectedId={selectedId}
@@ -235,7 +260,7 @@ export function GameBoard({ G, ctx, moves, playerID, matchID, isActive, syncStat
           <section className="panel-block command-card">
             <div className="split">
               <div>
-                <p className="eyebrow">Mando operativo</p>
+                <p className="eyebrow">Turno de conquista</p>
                 <h2>{ctx.currentPlayer === playerID ? "Tu turno" : `Jugador ${ctx.currentPlayer}`}</h2>
               </div>
               <button className="icon-button" onClick={copyLink} title="Copiar link de partida">Copiar</button>
@@ -253,6 +278,19 @@ export function GameBoard({ G, ctx, moves, playerID, matchID, isActive, syncStat
             <p className="small">Duracion {G.settings.duration} - max {G.settings.maxTurns} turnos</p>
           </section>
 
+          <section className="panel-block objective-card">
+            <p className="eyebrow">Objetivo</p>
+            <h2>Conquista {G.settings.targetCapitals} capitales o alcanza {G.settings.powerTarget} poder</h2>
+            <div className="turn-guide">
+              {turnSteps.map((step, index) => (
+                <div className={`guide-row ${G.phase === step.phase ? "active" : ""}`} key={step.phase}>
+                  <span>{index + 1}</span>
+                  <p><strong>{step.label}.</strong> {step.text}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
           <div className="territory-stack">
             <TerritoryPanel title="Origen" territory={selected} active />
             <TerritoryPanel title="Destino" territory={target} />
@@ -264,21 +302,21 @@ export function GameBoard({ G, ctx, moves, playerID, matchID, isActive, syncStat
               <h2>{phaseLabels[G.phase]}</h2>
             </div>
             <label>
-              Tropas
+              Tropas a usar
               <input type="number" min={1} max={99} value={amount} onChange={(event) => setAmount(Number(event.target.value))} />
             </label>
             <div className="action-row">{renderAction()}</div>
             <p className={actionHint.ok ? "hint ok" : "hint"}>{actionHint.message}</p>
-            <button className="primary wide" disabled={!isActive} onClick={() => moves.endPhase()}>
-              Terminar fase
+            <button className="primary wide" aria-label="Terminar fase" disabled={!isActive} onClick={() => moves.endPhase()}>
+              Pasar a {phaseLabels[nextPhaseName(G.phase)]}
             </button>
           </section>
 
           <section className="panel-block cards-card">
             <div className="split">
               <div>
-                <p className="eyebrow">Cartas de evento</p>
-                <h2>{playerHand.length}/3 en mano</h2>
+                <p className="eyebrow">Orden opcional</p>
+                <h2>{playerHand.length}/3 cartas</h2>
               </div>
               <span className={playerID && G.cardsPlayedThisTurn[playerID as keyof typeof G.cardsPlayedThisTurn] ? "card-used" : "card-ready"}>
                 {playerID && G.cardsPlayedThisTurn[playerID as keyof typeof G.cardsPlayedThisTurn] ? "Usada" : "Lista"}
@@ -296,12 +334,12 @@ export function GameBoard({ G, ctx, moves, playerID, matchID, isActive, syncStat
                   <small>{card.text}</small>
                 </button>
               ))}
-              {playerHand.length === 0 && <p className="muted">Sin cartas disponibles.</p>}
+              {playerHand.length === 0 && <p className="muted">Sin ordenes disponibles.</p>}
             </div>
           </section>
 
           <section className="panel-block battle-report">
-            <p className="eyebrow">Ultimo combate</p>
+            <p className="eyebrow">Parte de batalla</p>
             <h2>{lastBattle ? formatBattleTitle(lastBattle) : "Sin enfrentamientos"}</h2>
             <p className="muted">{lastBattle ? formatBattleDetail(lastBattle) : "Los movimientos militares apareceran aqui cuando empiece la fase de batalla."}</p>
           </section>
@@ -477,4 +515,11 @@ function VictoryModal({
       </section>
     </div>
   );
+}
+
+function nextPhaseName(phase: EuropaGameState["phase"]) {
+  if (phase === "production") return "movement";
+  if (phase === "movement") return "battle";
+  if (phase === "battle") return "consolidation";
+  return "production";
 }
