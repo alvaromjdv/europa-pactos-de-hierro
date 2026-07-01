@@ -12,14 +12,16 @@ type CreateResponse = {
 };
 
 type JoinResponse = {
+  matchID?: string;
+  playerID?: string;
   playerCredentials: string;
 };
 
 export async function createMatch(serverUrl: string, settings: LobbySettings = { numPlayers: 2, targetCapitals: 3, duration: "standard" }): Promise<string> {
-  const response = await fetch(`${serverUrl}/games/${GAME_NAME}/create`, {
+  const response = await fetch(`${serverUrl}/api/matches/create`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ numPlayers: settings.numPlayers, setupData: settings })
+    body: JSON.stringify({ settings })
   });
 
   if (!response.ok) {
@@ -36,15 +38,15 @@ export async function joinMatch(serverUrl: string, matchID: string, playerName: 
   const attempts = [...new Set([preferredPlayerID, "1", "2", "3", "0"])];
 
   for (const playerID of attempts) {
-    const response = await fetch(`${serverUrl}/games/${GAME_NAME}/${matchID}/join`, {
+    const response = await fetch(`${serverUrl}/api/matches/join`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ playerID, playerName })
+      body: JSON.stringify({ matchID, playerID, playerName })
     });
 
     if (response.ok) {
       const payload = (await response.json()) as JoinResponse;
-      return { matchID, playerID, credentials: payload.playerCredentials };
+      return { matchID: payload.matchID ?? matchID, playerID: payload.playerID ?? playerID, credentials: payload.playerCredentials };
     }
   }
 

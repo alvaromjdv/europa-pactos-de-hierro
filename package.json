@@ -15,16 +15,20 @@
     "build": "npm --workspaces run build",
     "test": "npm --workspace @europa/shared test",
     "test:e2e": "node scripts/verify-multiplayer.mjs",
-    "validate": "npm run test && npm --workspace @europa/server run build && npm --workspace @europa/frontend run build",
+    "validate": "npm run test && npm --workspace @europa/shared run build && npm --workspace @europa/server run build && npm --workspace @europa/frontend run build",
     "start:server": "npm --workspace @europa/server run start",
     "start:frontend": "npm --workspace @europa/frontend run preview"
   },
   "devDependencies": {
+    "@netlify/functions": "^5.3.0",
     "@types/node": "^20.14.15",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "npm-run-all": "^4.1.5",
     "playwright": "^1.61.1",
     "typescript": "^5.5.4"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^10.7.9"
   }
 }

@@ -1,0 +1,7 @@
+[build]
+  command = "npm install && npm --workspace @europa/frontend run build"
+  publish = "frontend/dist"
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"

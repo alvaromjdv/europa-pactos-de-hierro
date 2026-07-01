@@ -9,6 +9,8 @@ type BoardProps = {
   playerID: string | null;
   matchID: string;
   isActive: boolean;
+  syncStatus?: "sincronizando" | "actualizado" | "error";
+  syncError?: string;
 };
 
 const phaseLabels = {
@@ -33,7 +35,7 @@ type VisualEffect = {
   nonce: number;
 };
 
-export function GameBoard({ G, ctx, moves, playerID, matchID, isActive }: BoardProps) {
+export function GameBoard({ G, ctx, moves, playerID, matchID, isActive, syncStatus = "actualizado", syncError = "" }: BoardProps) {
   const [selectedId, setSelectedId] = useState<string>("iberia");
   const [targetId, setTargetId] = useState<string>("");
   const [amount, setAmount] = useState(1);
@@ -245,7 +247,9 @@ export function GameBoard({ G, ctx, moves, playerID, matchID, isActive }: BoardP
               <span>Poder {playerPower}/{G.settings.powerTarget}</span>
               <span>Rivales {enemyCapitals}</span>
               <span>{isActive ? "Activo" : "Espera"}</span>
+              <span className={`sync-${syncStatus}`}>{syncStatus}</span>
             </div>
+            {syncError && <p className="hint">{syncError}</p>}
             <p className="small">Duracion {G.settings.duration} - max {G.settings.maxTurns} turnos</p>
           </section>
 
