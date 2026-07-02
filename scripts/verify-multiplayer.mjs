@@ -68,7 +68,12 @@ async function clickTerritory(page, x, y) {
   const map = page.locator(".map-frame");
   const box = await map.boundingBox();
   assert(box, "No se encontro el mapa.");
-  await page.mouse.click(box.x + 22 + x * 0.82, box.y + 8 + y * 0.82);
+  const mapWidth = 1044;
+  const mapHeight = 934;
+  const scale = Math.max(0.42, Math.min(box.width / mapWidth, box.height / mapHeight) * 0.985);
+  const offsetX = Math.max(0, (box.width - mapWidth * scale) / 2);
+  const offsetY = Math.max(0, (box.height - mapHeight * scale) / 2);
+  await page.mouse.click(box.x + offsetX + x * scale, box.y + offsetY + y * scale);
 }
 
 async function waitForText(page, text) {

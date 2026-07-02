@@ -41,43 +41,69 @@ const terrainColors: Record<TerritoryState["terrain"], number> = {
 
 export function MapCanvas({ G, selectedId, targetId, playerID, phase, effect, onSelect }: MapCanvasProps) {
   const hostRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<Container | null>(null);
   const appRef = useRef<Application | null>(null);
   const mapLayerRef = useRef<Container | null>(null);
   const effectLayerRef = useRef<Container | null>(null);
+  const transformRef = useRef({ scale: 0.82, x: 22, y: 8 });
   const [hoveredId, setHoveredId] = useState("");
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
 
-  function handleCanvasPointer(event: PointerEvent<HTMLDivElement>) {
+  function redrawMap() {
+    const mapLayer = mapLayerRef.current;
+    if (!mapLayer) return;
+
+    mapLayer.removeChildren();
+    drawBackplate(mapLayer);
+    drawConnections(mapLayer, G, selectedId, targetId);
+    for (const territory of Object.values(G.territories)) {
+      drawTerritory(
+        mapLayer,
+        territory,
+        {
+          selected: territory.id === selectedId,
+          targeted: territory.id === targetId,
+          hovered: territory.id === hoveredId,
+          own: Boolean(playerID && territory.ownerId === playerID),
+          actionable: isActionable(phase, territory, playerID)
+        }
+      );
+    }
+  }
+
+  function toMapPoint(clientX: number, clientY: number) {
     const host = hostRef.current;
-    if (!host) return;
+    if (!host) return null;
     const rect = host.getBoundingClientRect();
-    const mapX = (event.clientX - rect.left - 22) / 0.82;
-    const mapY = (event.clientY - rect.top - 8) / 0.82;
-    const territory = Object.values(G.territories)
+    const transform = transformRef.current;
+    return {
+      x: (clientX - rect.left - transform.x) / transform.scale,
+      y: (clientY - rect.top - transform.y) / transform.scale
+    };
+  }
+
+  function findTerritoryAt(clientX: number, clientY: number) {
+    const point = toMapPoint(clientX, clientY);
+    if (!point) return undefined;
+    return Object.values(G.territories)
       .map((candidate) => ({
         territory: candidate,
-        distance: Math.hypot(candidate.x - mapX, candidate.y - mapY)
+        distance: Math.hypot(candidate.x - point.x, candidate.y - point.y)
       }))
       .filter(({ distance }) => distance <= 44)
       .sort((a, b) => a.distance - b.distance)[0]?.territory;
+  }
 
+  function handleCanvasPointer(event: PointerEvent<HTMLDivElement>) {
+    const territory = findTerritoryAt(event.clientX, event.clientY);
     if (territory) onSelectRef.current(territory.id);
   }
 
   function handleCanvasHover(event: PointerEvent<HTMLDivElement>) {
     const host = hostRef.current;
     if (!host) return;
-    const rect = host.getBoundingClientRect();
-    const mapX = (event.clientX - rect.left - 22) / 0.82;
-    const mapY = (event.clientY - rect.top - 8) / 0.82;
-    const territory = Object.values(G.territories)
-      .map((candidate) => ({
-        territory: candidate,
-        distance: Math.hypot(candidate.x - mapX, candidate.y - mapY)
-      }))
-      .filter(({ distance }) => distance <= 44)
-      .sort((a, b) => a.distance - b.distance)[0]?.territory;
+    const territory = findTerritoryAt(event.clientX, event.clientY);
     const next = territory?.id ?? "";
     if (next !== hoveredId) {
       setHoveredId(next);
@@ -100,9 +126,7 @@ export function MapCanvas({ G, selectedId, targetId, playerID, phase, effect, on
 
     const stage = new Container();
     stage.eventMode = "passive";
-    stage.scale.set(0.82);
-    stage.x = 22;
-    stage.y = 8;
+    stageRef.current = stage;
     app.stage.addChild(stage);
 
     const mapLayer = new Container();
@@ -114,8 +138,28 @@ export function MapCanvas({ G, selectedId, targetId, playerID, phase, effect, on
     mapLayerRef.current = mapLayer;
     effectLayerRef.current = effectLayer;
 
+    const resizeMap = () => {
+      const width = host.clientWidth;
+      const height = host.clientHeight;
+      const mapWidth = 1044;
+      const mapHeight = 934;
+      const scale = Math.max(0.42, Math.min(width / mapWidth, height / mapHeight) * 0.985);
+      const x = Math.max(0, (width - mapWidth * scale) / 2);
+      const y = Math.max(0, (height - mapHeight * scale) / 2);
+      transformRef.current = { scale, x, y };
+      stage.scale.set(scale);
+      stage.x = x;
+      stage.y = y;
+      redrawMap();
+    };
+    const observer = new ResizeObserver(resizeMap);
+    observer.observe(host);
+    resizeMap();
+
     return () => {
+      observer.disconnect();
       appRef.current = null;
+      stageRef.current = null;
       mapLayerRef.current = null;
       effectLayerRef.current = null;
       app.destroy(true, { children: true, texture: true, baseTexture: true });
@@ -123,25 +167,7 @@ export function MapCanvas({ G, selectedId, targetId, playerID, phase, effect, on
   }, []);
 
   useEffect(() => {
-    const mapLayer = mapLayerRef.current;
-    if (!mapLayer) return;
-
-    mapLayer.removeChildren();
-    drawBackplate(mapLayer);
-    drawConnections(mapLayer, G, selectedId, targetId);
-    for (const territory of Object.values(G.territories)) {
-      drawTerritory(
-        mapLayer,
-        territory,
-        {
-          selected: territory.id === selectedId,
-          targeted: territory.id === targetId,
-          hovered: territory.id === hoveredId,
-          own: Boolean(playerID && territory.ownerId === playerID),
-          actionable: isActionable(phase, territory, playerID)
-        }
-      );
-    }
+    redrawMap();
   }, [G, selectedId, targetId, hoveredId, playerID, phase]);
 
   useEffect(() => {
@@ -181,16 +207,36 @@ export function MapCanvas({ G, selectedId, targetId, playerID, phase, effect, on
 }
 
 function drawBackplate(stage: Container) {
+  const ocean = new Graphics();
+  ocean.beginFill(0x22a7ca, 1);
+  ocean.drawRoundedRect(20, 22, 1004, 900, 22);
+  ocean.endFill();
+  ocean.lineStyle(8, 0x111820, 0.62);
+  ocean.drawRoundedRect(20, 22, 1004, 900, 22);
+  stage.addChild(ocean);
+
+  const oceanGrid = new Graphics();
+  oceanGrid.lineStyle(1, 0xffffff, 0.12);
+  for (let x = 64; x < 980; x += 86) {
+    oceanGrid.moveTo(x, 60);
+    oceanGrid.lineTo(x + 80, 895);
+  }
+  for (let y = 74; y < 900; y += 62) {
+    oceanGrid.moveTo(58, y);
+    oceanGrid.lineTo(984, y - 38);
+  }
+  stage.addChild(oceanGrid);
+
   const paper = new Graphics();
-  paper.beginFill(0xd5bd89, 1);
+  paper.beginFill(0xd8c38d, 0.88);
   paper.drawRoundedRect(42, 42, 960, 850, 18);
   paper.endFill();
-  paper.lineStyle(4, 0x5a3c24, 0.7);
+  paper.lineStyle(4, 0x111820, 0.76);
   paper.drawRoundedRect(42, 42, 960, 850, 18);
   stage.addChild(paper);
 
   const sea = new Graphics();
-  sea.beginFill(0x87aeb8, 0.32);
+  sea.beginFill(0x7ed1df, 0.42);
   sea.drawEllipse(320, 510, 245, 360);
   sea.drawEllipse(720, 520, 320, 350);
   sea.endFill();
@@ -349,7 +395,7 @@ function drawEffect(stage: Container, G: EuropaGameState, effect: VisualEffect |
 
 function drawRegionPatch(stage: Container, points: number[], color: number, alpha: number) {
   const patch = new Graphics();
-  patch.lineStyle(2, 0x6b4a2d, 0.24);
+  patch.lineStyle(5, 0x111820, 0.42);
   patch.beginFill(color, alpha);
   patch.drawPolygon(points);
   patch.endFill();

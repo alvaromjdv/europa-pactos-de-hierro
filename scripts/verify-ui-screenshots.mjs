@@ -63,8 +63,14 @@ function stopProcess(child) {
 }
 
 await rm(resolve("data/netlify-local-ui"), { recursive: true, force: true });
-await rm(artifactsDir, { recursive: true, force: true });
 await mkdir(artifactsDir, { recursive: true });
+await Promise.all([
+  "01-start-screen.png",
+  "02-join-lobby.png",
+  "03-tutorial.png",
+  "04-live-match.png",
+  "05-victory-modal.png"
+].map((fileName) => rm(resolve(artifactsDir, fileName), { force: true })));
 
 const apiProcess = startProcess(nodeCommand, ["--import", "tsx", "scripts/local-netlify-api.ts"], {
   API_PORT: apiPort,
@@ -110,6 +116,7 @@ try {
 
   await page.getByRole("button", { name: "Crear partida" }).click();
   await page.locator(".game-shell canvas").waitFor({ timeout: 15000 });
+  await page.waitForTimeout(750);
   await page.screenshot({ path: resolve(artifactsDir, "04-live-match.png"), fullPage: true });
 
   const before = await page.locator(".map-frame").boundingBox();
