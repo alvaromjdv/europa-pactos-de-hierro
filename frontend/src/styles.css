@@ -125,9 +125,9 @@ h2 {
 }
 
 .login-panel {
-  width: min(760px, 100%);
+  width: min(980px, 100%);
   display: grid;
-  gap: 1.2rem;
+  gap: 1rem;
   padding: 1.35rem;
   border: 1px solid rgba(238, 196, 128, 0.34);
   border-radius: 8px;
@@ -135,6 +135,145 @@ h2 {
     linear-gradient(180deg, rgba(20, 16, 13, 0.94), rgba(12, 11, 10, 0.96)),
     radial-gradient(circle at 85% 8%, rgba(162, 89, 46, 0.2), transparent 34%);
   box-shadow: 0 24px 90px rgba(0, 0, 0, 0.55);
+}
+
+.lobby-preview {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) 250px;
+  gap: 0.9rem;
+  align-items: stretch;
+}
+
+.preview-board,
+.preview-brief {
+  position: relative;
+  min-height: 145px;
+  overflow: hidden;
+  border: 1px solid rgba(238, 196, 128, 0.24);
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at 25% 45%, rgba(65, 132, 197, 0.28), transparent 25%),
+    radial-gradient(circle at 68% 48%, rgba(193, 63, 49, 0.24), transparent 27%),
+    linear-gradient(135deg, rgba(207, 184, 132, 0.18), rgba(20, 18, 15, 0.68));
+}
+
+.preview-board::before {
+  position: absolute;
+  inset: 18px;
+  content: "";
+  border: 2px solid rgba(95, 70, 48, 0.58);
+  border-radius: 8px;
+  background:
+    linear-gradient(rgba(97, 76, 47, 0.18) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(97, 76, 47, 0.12) 1px, transparent 1px);
+  background-size: 38px 30px;
+}
+
+.preview-route {
+  position: absolute;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(255, 214, 146, 0.38);
+  transform-origin: left center;
+}
+
+.route-a {
+  left: 130px;
+  top: 62px;
+  width: 170px;
+  transform: rotate(15deg);
+}
+
+.route-b {
+  left: 210px;
+  top: 95px;
+  width: 185px;
+  transform: rotate(-12deg);
+}
+
+.route-c {
+  left: 78px;
+  top: 105px;
+  width: 145px;
+  transform: rotate(-22deg);
+}
+
+.preview-token {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 3px solid rgba(255, 239, 200, 0.72);
+  border-radius: 999px;
+  color: #fff6e6;
+  font-weight: 900;
+  text-shadow: 0 2px 2px rgba(0, 0, 0, 0.72);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.34);
+}
+
+.preview-token.blue {
+  left: 86px;
+  top: 58px;
+  background: #3f84c5;
+}
+
+.preview-token.red {
+  left: 330px;
+  top: 56px;
+  background: #c13f31;
+}
+
+.preview-token.gold {
+  left: 206px;
+  top: 88px;
+  background: #d2a638;
+}
+
+.preview-token.green {
+  left: 430px;
+  top: 92px;
+  background: #4e9b72;
+}
+
+.preview-capital {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border: 2px solid #7d2b22;
+  transform: rotate(45deg);
+}
+
+.capital-a {
+  left: 115px;
+  top: 42px;
+}
+
+.capital-b {
+  left: 356px;
+  top: 38px;
+}
+
+.preview-brief {
+  display: grid;
+  align-content: center;
+  gap: 0.85rem;
+  padding: 1rem;
+  background: linear-gradient(180deg, rgba(44, 34, 25, 0.96), rgba(17, 16, 14, 0.96));
+}
+
+.preview-steps {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.preview-steps span {
+  border: 1px solid rgba(255, 199, 120, 0.28);
+  border-radius: 999px;
+  padding: 0.4rem 0.65rem;
+  color: #f8ead3;
+  background: rgba(22, 19, 16, 0.72);
+  font-weight: 800;
 }
 
 .subtitle,
@@ -188,6 +327,12 @@ h2 {
   grid-template-columns: repeat(3, 1fr);
 }
 
+.lobby-actions .primary {
+  min-height: 58px;
+  font-size: 1.03rem;
+  font-weight: 800;
+}
+
 .primary {
   background: linear-gradient(180deg, #b74130, #7d2b22);
   border-color: rgba(255, 159, 116, 0.58);
@@ -208,10 +353,12 @@ h2 {
 .game-shell {
   position: relative;
   min-height: 100vh;
-  padding: 1.15rem;
+  height: 100dvh;
+  padding: 0.85rem;
   display: grid;
   grid-template-rows: auto 1fr;
-  gap: 1rem;
+  gap: 0.75rem;
+  overflow: hidden;
   background:
     linear-gradient(90deg, rgba(4, 8, 12, 0.72), rgba(28, 17, 13, 0.38)),
     radial-gradient(circle at 76% 14%, rgba(195, 99, 49, 0.18), transparent 30%);
@@ -222,7 +369,7 @@ h2 {
   justify-content: space-between;
   gap: 1rem;
   align-items: center;
-  padding: 0.45rem 0.55rem;
+  padding: 0.35rem 0.55rem;
   border: 1px solid rgba(229, 181, 117, 0.2);
   border-radius: 8px;
   background: linear-gradient(90deg, rgba(13, 17, 20, 0.88), rgba(39, 28, 22, 0.74));
@@ -349,7 +496,7 @@ h2 {
 .side-panel {
   display: grid;
   align-content: start;
-  gap: 0.85rem;
+  gap: 0.7rem;
   min-width: 0;
   max-height: calc(100vh - 104px);
   overflow: auto;
@@ -358,8 +505,8 @@ h2 {
 
 .panel-block {
   display: grid;
-  gap: 0.7rem;
-  padding: 0.9rem;
+  gap: 0.55rem;
+  padding: 0.78rem;
   border: 1px solid rgba(222, 180, 119, 0.22);
   border-radius: 8px;
   background: linear-gradient(180deg, rgba(28, 23, 19, 0.94), rgba(14, 15, 15, 0.94));
@@ -416,7 +563,7 @@ h2 {
 .territory-stack {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0.85rem;
+  gap: 0.65rem;
 }
 
 .territory-card.active {
@@ -748,6 +895,14 @@ h2 {
 
   .map-frame {
     min-height: 460px;
+  }
+
+  .lobby-preview {
+    grid-template-columns: 1fr;
+  }
+
+  .preview-brief {
+    min-height: auto;
   }
 
   .tutorial-grid {

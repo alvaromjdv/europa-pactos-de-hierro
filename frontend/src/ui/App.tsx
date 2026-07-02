@@ -84,6 +84,28 @@ export function App({ serverUrl, GameClient }: AppProps) {
           <p className="subtitle">Crea una partida, comparte el codigo y conquista capitales por turnos: refuerza, ataca, fortifica y protege tus fronteras.</p>
         </div>
 
+        <section className="lobby-preview" aria-label="Vista previa del tablero">
+          <div className="preview-board" aria-hidden="true">
+            <span className="preview-route route-a" />
+            <span className="preview-route route-b" />
+            <span className="preview-route route-c" />
+            <span className="preview-token blue">6</span>
+            <span className="preview-token red">8</span>
+            <span className="preview-token gold">3</span>
+            <span className="preview-token green">4</span>
+            <span className="preview-capital capital-a" />
+            <span className="preview-capital capital-b" />
+          </div>
+          <div className="preview-brief">
+            <p className="eyebrow">Flujo de turno</p>
+            <div className="preview-steps">
+              <span>Refuerza</span>
+              <span>Ataca</span>
+              <span>Fortifica</span>
+            </div>
+          </div>
+        </section>
+
         <section className="lobby-guide">
           <div className="split">
             <p className="eyebrow">Como se gana</p>

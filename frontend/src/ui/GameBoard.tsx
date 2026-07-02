@@ -293,10 +293,10 @@ export function GameBoard({ G, ctx, moves, playerID, matchID, isActive, syncStat
               <input type="number" min={1} max={99} value={amount} onChange={(event) => setAmount(Number(event.target.value))} />
             </label>
             <div className="action-row">{renderAction()}</div>
-            <p className={actionHint.ok ? "hint ok" : "hint"}>{actionHint.message}</p>
             <button className="primary wide" aria-label="Terminar fase" disabled={!isActive} onClick={() => moves.endPhase()}>
               Pasar a {phaseLabels[nextPhaseName(G.phase)]}
             </button>
+            <p className={actionHint.ok ? "hint ok" : "hint"}>{actionHint.message}</p>
           </section>
 
           <section className="panel-block objective-card">

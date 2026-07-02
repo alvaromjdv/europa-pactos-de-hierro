@@ -98,15 +98,19 @@ try {
   await page.goto(frontendUrl, { waitUntil: "networkidle" });
   await page.screenshot({ path: resolve(artifactsDir, "01-start-screen.png"), fullPage: true });
 
+  await page.getByLabel("Nombre").fill("Alice");
+  await page.getByLabel("Codigo de partida").fill("ABC123");
+  await page.screenshot({ path: resolve(artifactsDir, "02-join-lobby.png"), fullPage: true });
+  await page.getByLabel("Codigo de partida").fill("");
+
   await page.getByRole("button", { name: "Como jugar" }).click();
   await page.getByRole("dialog", { name: "Juega como en un tablero de conquista" }).waitFor();
-  await page.screenshot({ path: resolve(artifactsDir, "02-tutorial.png"), fullPage: true });
+  await page.screenshot({ path: resolve(artifactsDir, "03-tutorial.png"), fullPage: true });
   await page.getByRole("button", { name: "Entendido" }).click();
 
-  await page.getByLabel("Nombre").fill("Alice");
   await page.getByRole("button", { name: "Crear partida" }).click();
   await page.locator(".game-shell canvas").waitFor({ timeout: 15000 });
-  await page.screenshot({ path: resolve(artifactsDir, "03-live-match.png"), fullPage: true });
+  await page.screenshot({ path: resolve(artifactsDir, "04-live-match.png"), fullPage: true });
 
   const before = await page.locator(".map-frame").boundingBox();
   assert(before, "No se encontro el marco del mapa.");
@@ -145,7 +149,7 @@ try {
     `;
     document.body.appendChild(backdrop);
   });
-  await page.screenshot({ path: resolve(artifactsDir, "04-victory-modal.png"), fullPage: true });
+  await page.screenshot({ path: resolve(artifactsDir, "05-victory-modal.png"), fullPage: true });
 
   console.log(JSON.stringify({ ok: true, artifactsDir }, null, 2));
 } finally {
