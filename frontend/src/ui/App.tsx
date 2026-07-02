@@ -102,6 +102,7 @@ export function App({ serverUrl, GameClient }: AppProps) {
               <span>Refuerza</span>
               <span>Ataca</span>
               <span>Fortifica</span>
+              <span>Termina turno</span>
             </div>
           </div>
         </section>
@@ -226,18 +227,18 @@ function TutorialModal({ onClose }: { onClose: () => void }) {
           </article>
           <article>
             <span>2</span>
-            <h3>Mueve</h3>
-            <p>Recoloca tropas entre territorios propios conectados. Deja siempre una tropa defendiendo el origen.</p>
+            <h3>Ataca</h3>
+            <p>Haz clic en un territorio propio con tropas y despues en un enemigo conectado. El resultado muestra dados y perdidas.</p>
           </article>
           <article>
             <span>3</span>
-            <h3>Ataca</h3>
-            <p>Selecciona un territorio propio con tropas y despues un enemigo adyacente. El terreno puede dar defensa extra.</p>
+            <h3>Fortifica</h3>
+            <p>Mueve tropas entre dos territorios propios conectados. Deja siempre una tropa defendiendo el origen.</p>
           </article>
           <article>
             <span>4</span>
-            <h3>Fortifica</h3>
-            <p>Marca una posicion clave, termina la fase y espera al rival. Ganas por capitales o por puntos de poder.</p>
+            <h3>Termina turno</h3>
+            <p>Pasa el mando al rival. Ganas controlando capitales, acumulando poder o manteniendo regiones completas.</p>
           </article>
         </div>
         <p className="phase-help">Consejo rapido: primero haz clic en tu territorio de origen y luego en el destino conectado. Las acciones importantes nunca se ejecutan solo al pasar el raton.</p>

@@ -1,10 +1,10 @@
 import type { Game } from "boardgame.io";
-import { CAPITALS_TO_WIN, territoryDefinitions } from "./map";
+import { CAPITALS_TO_WIN, regionDefinitions, territoryDefinitions } from "./map";
 import { eventCardById, eventCards } from "./cards";
 import type { BattleReport, EuropaGameState, EventCard, MatchSettings, MoveResult, Phase, PlayerID, TerritoryState } from "./types";
 
 const INVALID_MOVE = "INVALID_MOVE";
-const phaseOrder: Phase[] = ["production", "movement", "battle", "consolidation"];
+const phaseOrder: Phase[] = ["production", "battle", "consolidation"];
 
 const terrainDefenseBonus: Record<TerritoryState["terrain"], number> = {
   plains: 0,
@@ -70,9 +70,19 @@ export function createInitialState(setupData?: Partial<MatchSettings>): EuropaGa
 }
 
 export function getPlayerResources(G: EuropaGameState, playerID: PlayerID): number {
-  return Object.values(G.territories)
+  const territoryResources = Object.values(G.territories)
     .filter((territory) => territory.ownerId === playerID)
     .reduce((total, territory) => total + territory.resources, 0);
+  return territoryResources + getRegionControlBonus(G, playerID);
+}
+
+export function getRegionControlBonus(G: EuropaGameState, playerID: PlayerID): number {
+  return Object.entries(regionDefinitions).reduce((total, [regionId, region]) => {
+    const territories = Object.values(G.territories).filter((territory) => territory.region === regionId);
+    return territories.length > 0 && territories.every((territory) => territory.ownerId === playerID)
+      ? total + region.bonus
+      : total;
+  }, 0);
 }
 
 export function isConnected(G: EuropaGameState, fromId: string, toId: string): boolean {
@@ -197,8 +207,9 @@ export function moveTroops(
 ): MoveResult {
   const turn = ensureTurn(playerID, currentPlayer);
   if (!turn.ok) return turn;
-  const phase = ensurePhase(G, "movement");
-  if (!phase.ok) return phase;
+  if (G.phase !== "movement" && G.phase !== "consolidation") {
+    return { ok: false, reason: "La accion requiere la fase de fortificacion." };
+  }
 
   const from = G.territories[fromId];
   const to = G.territories[toId];
@@ -231,7 +242,7 @@ export function fortifyTerritory(
   if (territory.ownerId !== playerID) return { ok: false, reason: "Solo puedes fortificar territorios propios." };
 
   territory.fortified = true;
-  pushLog(G, `${territory.name}: ${playerID} fortifica posiciones.`);
+  pushLog(G, `${territory.name}: ${playerID} asegura la frontera.`);
   return { ok: true };
 }
 
@@ -281,7 +292,7 @@ export function attackTerritory(
   }
 
   const battle: BattleReport = { attackerRoll, defenderRoll, attackerPower, defenderPower, terrainDefenseBonus: terrainBonus, conquered, attackerLosses, defenderLosses };
-  pushLog(G, `${from.name} ataca ${to.name}: ${conquered ? "conquista" : "resiste"} (${attackerPower}-${defenderPower}, terreno +${terrainBonus}).`);
+  pushLog(G, `${from.name} ataca ${to.name}: ${conquered ? "conquista" : "resiste"} (dados ${attackerRoll}/${defenderRoll}, fuerza ${attackerPower}-${defenderPower}, terreno +${terrainBonus}).`);
   G.winner = checkWinner(G);
   return { ok: true, battle };
 }
@@ -357,7 +368,7 @@ export function advancePhase(G: EuropaGameState, currentPlayer: string, playerID
       G.hands[activePlayer] = drawCards(G.deck, G.hands[activePlayer] ?? [], 1);
     }
   }
-  pushLog(G, `Fase actual: ${G.phase}.`);
+  pushLog(G, `Fase actual: ${phaseLabel(G.phase)}.`);
   G.winner = checkWinner(G);
   return { ok: true };
 }
@@ -405,6 +416,13 @@ export const EuropaGame: Game<EuropaGameState> = {
     }
   }
 };
+
+function phaseLabel(phase: Phase): string {
+  if (phase === "production") return "refuerzos";
+  if (phase === "battle") return "ataque";
+  if (phase === "consolidation") return "fortificacion";
+  return "maniobra";
+}
 
 export function getPlayerView(G: EuropaGameState, playerID?: PlayerID): EuropaGameState {
   if (!playerID) return G;

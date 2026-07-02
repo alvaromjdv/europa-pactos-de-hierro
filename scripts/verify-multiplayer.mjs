@@ -146,6 +146,7 @@ try {
   await waitForText(pageA, "Tu turno");
   await waitForText(pageB, "Esperando al jugador 0");
 
+  await pageA.getByText("Ordenes opcionales").click();
   await pageA.getByRole("button", { name: /Impulso industrial/ }).click();
   await waitForText(pageA, "juega Impulso industrial");
   await waitForText(pageB, "juega Impulso industrial");
@@ -153,15 +154,6 @@ try {
   await pageA.getByRole("button", { name: "Reclutar" }).click();
   await waitForText(pageA, "Tropas 9");
   await waitForText(pageB, "recluta 1 tropas");
-
-  await pageA.getByRole("button", { name: "Terminar fase" }).click();
-  await waitForText(pageA, "Movimiento");
-  await waitForText(pageB, "Movimiento");
-
-  await clickTerritory(pageA, 270, 420);
-  await pageA.getByRole("button", { name: "Mover" }).click();
-  await waitForText(pageA, "Iberia -> Francia");
-  await waitForText(pageB, "Iberia -> Francia");
 
   await pageA.getByRole("button", { name: "Terminar fase" }).click();
   await waitForText(pageA, "Batalla");
@@ -179,9 +171,11 @@ try {
   await waitForText(pageA, "Consolidacion");
   await waitForText(pageB, "Consolidacion");
 
+  await clickTerritory(pageA, 160, 520);
+  await clickTerritory(pageA, 270, 420);
   await pageA.getByRole("button", { name: "Fortificar" }).click();
-  await waitForText(pageA, "fortifica posiciones");
-  await waitForText(pageB, "fortifica posiciones");
+  await waitForText(pageA, "Iberia -> Francia");
+  await waitForText(pageB, "Iberia -> Francia");
 
   await pageA.getByRole("button", { name: "Terminar fase" }).click();
   await waitForText(pageA, "Esperando al jugador 1");

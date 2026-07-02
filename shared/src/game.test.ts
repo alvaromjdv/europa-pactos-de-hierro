@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { attackTerritory, advancePhase, checkWinner, createInitialState, getPlayerView, getPowerScore, getTerrainDefenseBonus, moveTroops, playEventCard } from "./game";
+import { attackTerritory, advancePhase, checkWinner, createInitialState, getPlayerResources, getRegionControlBonus, getPlayerView, getPowerScore, getTerrainDefenseBonus, moveTroops, playEventCard } from "./game";
 
 test("no permite mover tropas inexistentes", () => {
   const G = createInitialState();
@@ -11,6 +11,19 @@ test("no permite mover tropas inexistentes", () => {
 
   assert.equal(result.ok, false);
   assert.equal(G.territories.iberia.troops, before);
+});
+
+test("permite fortificar moviendo tropas al final del turno", () => {
+  const G = createInitialState();
+  G.phase = "consolidation";
+  G.territories.iberia.troops = 7;
+  const beforeFrance = G.territories.france.troops;
+
+  const result = moveTroops(G, "0", "0", "iberia", "france", 2);
+
+  assert.equal(result.ok, true);
+  assert.equal(G.territories.iberia.troops, 5);
+  assert.equal(G.territories.france.troops, beforeFrance + 2);
 });
 
 test("no permite atacar territorios no adyacentes", () => {
@@ -46,6 +59,14 @@ test("aplica bonus de defensa por montana y capital", () => {
   assert.equal(getTerrainDefenseBonus(G.territories.alps), 1);
   assert.equal(getTerrainDefenseBonus(G.territories.france), 1);
   assert.equal(getTerrainDefenseBonus(G.territories["western-med"]), 0);
+});
+
+test("suma bonus de region al controlar una region completa", () => {
+  const G = createInitialState();
+  G.territories.ireland.ownerId = "0";
+
+  assert.equal(getRegionControlBonus(G, "0"), 3);
+  assert.equal(getPlayerResources(G, "0"), 15);
 });
 
 test("incluye el bonus de terreno en combate", () => {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { getPowerScore, isConnected, type EuropaGameState, type EventCard, type TerritoryState } from "@europa/shared";
+import { getPowerScore, getRegionControlBonus, isConnected, regionDefinitions, type EuropaGameState, type EventCard, type TerritoryState } from "@europa/shared";
 import { MapCanvas } from "./MapCanvas";
 
 type BoardProps = {
@@ -15,9 +15,9 @@ type BoardProps = {
 
 const phaseLabels = {
   production: "Refuerzos",
-  movement: "Maniobra",
+  movement: "Fortificacion",
   battle: "Ataque",
-  consolidation: "Fortificar"
+  consolidation: "Fortificacion"
 };
 
 const legacyPhaseLabels = {
@@ -28,17 +28,16 @@ const legacyPhaseLabels = {
 };
 
 const phaseHelp = {
-  production: "Coloca tropas en un territorio propio. Las capitales suelen ser buenos puntos de salida.",
-  movement: "Mueve tropas entre dos territorios propios conectados y deja siempre una defendiendo.",
-  battle: "Elige un territorio propio con tropas y ataca un enemigo adyacente.",
-  consolidation: "Marca una posicion clave como fortificada y termina tu turno."
+  production: "Elige un territorio propio y coloca refuerzos. Controlar regiones completas da tropas extra.",
+  movement: "Mueve tropas entre territorios propios conectados y deja siempre una defendiendo.",
+  battle: "Primer clic: territorio propio con tropas. Segundo clic: enemigo conectado. Luego pulsa Atacar.",
+  consolidation: "Mueve tropas entre dos territorios propios conectados para cerrar la frontera."
 };
 
 const turnSteps = [
   { phase: "production", label: "Refuerza", text: "Pon tropas en tus zonas." },
-  { phase: "movement", label: "Mueve", text: "Recoloca entre zonas propias." },
-  { phase: "battle", label: "Ataca", text: "Conquista vecinos enemigos." },
-  { phase: "consolidation", label: "Fortifica", text: "Protege una frontera." }
+  { phase: "battle", label: "Ataca", text: "Elige origen y enemigo adyacente." },
+  { phase: "consolidation", label: "Fortifica", text: "Mueve tropas entre zonas propias." }
 ] as const;
 
 type VisualEffect = {
@@ -63,6 +62,8 @@ export function GameBoard({ G, ctx, moves, playerID, matchID, isActive, syncStat
     [G.territories, playerID]
   );
   const resources = playerTerritories.reduce((total, territory) => total + territory.resources, 0);
+  const regionBonus = playerID ? getRegionControlBonus(G, playerID as "0" | "1" | "2" | "3" | "4" | "5") : 0;
+  const reinforcements = playerID ? resources + regionBonus : 0;
   const capitals = playerTerritories.filter((territory) => territory.isCapital).length;
   const enemyCapitals = Object.values(G.territories).filter((territory) => territory.isCapital && territory.ownerId && territory.ownerId !== playerID).length;
   const playerHand = playerID ? G.hands[playerID as keyof typeof G.hands] ?? [] : [];
@@ -120,9 +121,30 @@ export function GameBoard({ G, ctx, moves, playerID, matchID, isActive, syncStat
     return () => window.clearTimeout(timeout);
   }, [toast]);
 
+  useEffect(() => {
+    setTargetId("");
+    const firstOwned = Object.values(G.territories).find((territory) => territory.ownerId === playerID);
+    if (firstOwned) setSelectedId(firstOwned.id);
+  }, [G.phase]);
+
   function selectTerritory(id: string) {
     const clicked = G.territories[id];
     const current = G.territories[selectedId];
+    if (G.phase === "production" && clicked.ownerId === playerID) {
+      setSelectedId(id);
+      setTargetId("");
+      return;
+    }
+    if (
+      G.phase === "consolidation" &&
+      clicked.ownerId === playerID &&
+      current?.ownerId === playerID &&
+      id !== selectedId &&
+      isConnected(G, selectedId, id)
+    ) {
+      setTargetId(id);
+      return;
+    }
     const canTargetFromSelection =
       playerID &&
       current &&
@@ -130,6 +152,7 @@ export function GameBoard({ G, ctx, moves, playerID, matchID, isActive, syncStat
       id !== selectedId &&
       isConnected(G, selectedId, id) &&
       ((G.phase === "movement" && clicked.ownerId === playerID) ||
+        (G.phase === "consolidation" && clicked.ownerId === playerID) ||
         (G.phase === "battle" && clicked.ownerId !== playerID));
 
     if (canTargetFromSelection) {
@@ -196,10 +219,10 @@ export function GameBoard({ G, ctx, moves, playerID, matchID, isActive, syncStat
       );
     }
 
-    if (G.phase === "movement") {
+    if (G.phase === "movement" || G.phase === "consolidation") {
       return (
         <button className="action-button move" disabled={!target || selected.ownerId !== playerID || target.ownerId !== playerID} onClick={moveSelected}>
-          Mover
+          Fortificar
         </button>
       );
     }
@@ -212,11 +235,7 @@ export function GameBoard({ G, ctx, moves, playerID, matchID, isActive, syncStat
       );
     }
 
-    return (
-      <button className="action-button fortify" disabled={selected.ownerId !== playerID} onClick={fortifySelected}>
-        Fortificar
-      </button>
-    );
+    return null;
   }
 
   return (
@@ -231,6 +250,8 @@ export function GameBoard({ G, ctx, moves, playerID, matchID, isActive, syncStat
           <span className="player-chip">Jugador {playerID}</span>
           <span className={`phase-chip phase-${G.phase}`}>{phaseLabels[G.phase]}</span>
           <span className="sr-only">{legacyPhaseLabels[G.phase]}</span>
+          <span>Refuerzos {reinforcements}</span>
+          <span>Objetivo {G.settings.targetCapitals} capitales</span>
           <span>Turno {G.turnNumber}</span>
         </div>
       </header>
@@ -246,15 +267,22 @@ export function GameBoard({ G, ctx, moves, playerID, matchID, isActive, syncStat
           ))}
         </nav>
 
-        <MapCanvas
-          G={G}
-          selectedId={selectedId}
-          targetId={targetId}
-          playerID={playerID}
-          phase={G.phase}
-          effect={visualEffect}
-          onSelect={selectTerritory}
-        />
+        <section className="board-stage">
+          <MapCanvas
+            G={G}
+            selectedId={selectedId}
+            targetId={targetId}
+            playerID={playerID}
+            phase={G.phase}
+            effect={visualEffect}
+            onSelect={selectTerritory}
+          />
+          <div className="bottom-log" aria-label="Historial compacto">
+            {G.log.slice(0, 4).map((entry, index) => (
+              <p className={entry.includes(" ataca ") ? "battle-entry" : ""} key={`${entry}-${index}`}>{entry}</p>
+            ))}
+          </div>
+        </section>
 
         <aside className="side-panel">
           <section className="panel-block command-card">
@@ -267,7 +295,8 @@ export function GameBoard({ G, ctx, moves, playerID, matchID, isActive, syncStat
             </div>
             <p className="phase-help">{phaseHelp[G.phase]}</p>
             <div className="stats">
-              <span>Recursos {resources}</span>
+              <span>Refuerzos {reinforcements}</span>
+              <span>Bonus regiones +{regionBonus}</span>
               <span>Capitales {capitals}/{G.settings.targetCapitals}</span>
               <span>Poder {playerPower}/{G.settings.powerTarget}</span>
               <span>Rivales {enemyCapitals}</span>
@@ -293,8 +322,8 @@ export function GameBoard({ G, ctx, moves, playerID, matchID, isActive, syncStat
               <input type="number" min={1} max={99} value={amount} onChange={(event) => setAmount(Number(event.target.value))} />
             </label>
             <div className="action-row">{renderAction()}</div>
-            <button className="primary wide" aria-label="Terminar fase" disabled={!isActive} onClick={() => moves.endPhase()}>
-              Pasar a {phaseLabels[nextPhaseName(G.phase)]}
+            <button className="primary wide end-turn-button" aria-label="Terminar fase" disabled={!isActive} onClick={() => moves.endPhase()}>
+              {G.phase === "consolidation" ? "Terminar turno" : `Pasar a ${phaseLabels[nextPhaseName(G.phase)]}`}
             </button>
             <p className={actionHint.ok ? "hint ok" : "hint"}>{actionHint.message}</p>
           </section>
@@ -302,6 +331,11 @@ export function GameBoard({ G, ctx, moves, playerID, matchID, isActive, syncStat
           <section className="panel-block objective-card">
             <p className="eyebrow">Objetivo</p>
             <h2>Conquista {G.settings.targetCapitals} capitales o alcanza {G.settings.powerTarget} poder</h2>
+            <div className="region-bonus-list">
+              {Object.entries(regionDefinitions).map(([id, region]) => (
+                <span key={id}>{region.name} +{region.bonus}</span>
+              ))}
+            </div>
             <div className="turn-guide">
               {turnSteps.map((step, index) => (
                 <div className={`guide-row ${G.phase === step.phase ? "active" : ""}`} key={step.phase}>
@@ -312,7 +346,11 @@ export function GameBoard({ G, ctx, moves, playerID, matchID, isActive, syncStat
             </div>
           </section>
 
-          <section className="panel-block cards-card">
+          <details className="panel-block cards-card">
+            <summary>
+              <span>Ordenes opcionales</span>
+              <strong>{playerHand.length}/3</strong>
+            </summary>
             <div className="split">
               <div>
                 <p className="eyebrow">Orden opcional</p>
@@ -336,7 +374,7 @@ export function GameBoard({ G, ctx, moves, playerID, matchID, isActive, syncStat
               ))}
               {playerHand.length === 0 && <p className="muted">Sin ordenes disponibles.</p>}
             </div>
-          </section>
+          </details>
 
           <section className="panel-block battle-report">
             <p className="eyebrow">Parte de batalla</p>
@@ -344,15 +382,6 @@ export function GameBoard({ G, ctx, moves, playerID, matchID, isActive, syncStat
             <p className="muted">{lastBattle ? formatBattleDetail(lastBattle) : "Los movimientos militares apareceran aqui cuando empiece la fase de batalla."}</p>
           </section>
 
-          <section className="panel-block log">
-            <div className="split">
-              <h2>Historial</h2>
-              <span className="log-count">{G.log.length}</span>
-            </div>
-            {G.log.map((entry, index) => (
-              <p className={entry.includes(" ataca ") ? "battle-entry" : ""} key={`${entry}-${index}`}>{entry}</p>
-            ))}
-          </section>
         </aside>
       </section>
 
@@ -411,15 +440,19 @@ function getActionHint(G: EuropaGameState, selected: TerritoryState | undefined,
     if (target.ownerId !== playerID) return { ok: false, message: "El destino de movimiento debe ser propio." };
     return { ok: true, message: "Orden de movimiento lista." };
   }
+  if (G.phase === "consolidation") {
+    if (selected.ownerId !== playerID) return { ok: false, message: "El origen debe ser tuyo." };
+    if (!target) return { ok: false, message: "Selecciona un territorio propio conectado para fortificar." };
+    if (target.ownerId !== playerID) return { ok: false, message: "La fortificacion solo mueve tropas entre territorios propios." };
+    return { ok: true, message: "Fortificacion lista. Mueve tropas y termina el turno." };
+  }
   if (G.phase === "battle") {
     if (selected.ownerId !== playerID) return { ok: false, message: "El ataque debe salir de un territorio propio." };
     if (!target) return { ok: false, message: "Selecciona un objetivo enemigo adyacente." };
     if (target.ownerId === playerID) return { ok: false, message: "No puedes atacar un territorio propio." };
     return { ok: true, message: "Ataque preparado contra objetivo adyacente." };
   }
-  return selected.ownerId === playerID
-    ? { ok: true, message: "Puedes fortificar este territorio." }
-    : { ok: false, message: "Selecciona un territorio propio para fortificar." };
+  return { ok: false, message: "Selecciona un territorio propio." };
 }
 
 function terrainLabel(terrain: TerritoryState["terrain"]) {
@@ -518,7 +551,7 @@ function VictoryModal({
 }
 
 function nextPhaseName(phase: EuropaGameState["phase"]) {
-  if (phase === "production") return "movement";
+  if (phase === "production") return "battle";
   if (phase === "movement") return "battle";
   if (phase === "battle") return "consolidation";
   return "production";

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { PointerEvent } from "react";
 import { Application, Container, Graphics, Text, TextStyle } from "pixi.js";
 import type { EuropaGameState, Phase, TerritoryState } from "@europa/shared";
@@ -44,6 +44,7 @@ export function MapCanvas({ G, selectedId, targetId, playerID, phase, effect, on
   const appRef = useRef<Application | null>(null);
   const mapLayerRef = useRef<Container | null>(null);
   const effectLayerRef = useRef<Container | null>(null);
+  const [hoveredId, setHoveredId] = useState("");
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
 
@@ -58,10 +59,30 @@ export function MapCanvas({ G, selectedId, targetId, playerID, phase, effect, on
         territory: candidate,
         distance: Math.hypot(candidate.x - mapX, candidate.y - mapY)
       }))
-      .filter(({ distance }) => distance <= 34)
+      .filter(({ distance }) => distance <= 44)
       .sort((a, b) => a.distance - b.distance)[0]?.territory;
 
     if (territory) onSelectRef.current(territory.id);
+  }
+
+  function handleCanvasHover(event: PointerEvent<HTMLDivElement>) {
+    const host = hostRef.current;
+    if (!host) return;
+    const rect = host.getBoundingClientRect();
+    const mapX = (event.clientX - rect.left - 22) / 0.82;
+    const mapY = (event.clientY - rect.top - 8) / 0.82;
+    const territory = Object.values(G.territories)
+      .map((candidate) => ({
+        territory: candidate,
+        distance: Math.hypot(candidate.x - mapX, candidate.y - mapY)
+      }))
+      .filter(({ distance }) => distance <= 44)
+      .sort((a, b) => a.distance - b.distance)[0]?.territory;
+    const next = territory?.id ?? "";
+    if (next !== hoveredId) {
+      setHoveredId(next);
+      host.style.cursor = next ? "pointer" : "default";
+    }
   }
 
   useEffect(() => {
@@ -115,12 +136,13 @@ export function MapCanvas({ G, selectedId, targetId, playerID, phase, effect, on
         {
           selected: territory.id === selectedId,
           targeted: territory.id === targetId,
+          hovered: territory.id === hoveredId,
           own: Boolean(playerID && territory.ownerId === playerID),
           actionable: isActionable(phase, territory, playerID)
         }
       );
     }
-  }, [G, selectedId, targetId, playerID, phase]);
+  }, [G, selectedId, targetId, hoveredId, playerID, phase]);
 
   useEffect(() => {
     const app = appRef.current;
@@ -146,7 +168,16 @@ export function MapCanvas({ G, selectedId, targetId, playerID, phase, effect, on
     };
   }, [G, effect]);
 
-  return <div className="map-frame" ref={hostRef} onPointerDown={handleCanvasPointer} aria-label="Mapa interactivo de Europa" />;
+  return (
+    <div
+      className="map-frame"
+      ref={hostRef}
+      onPointerDown={handleCanvasPointer}
+      onPointerMove={handleCanvasHover}
+      onPointerLeave={() => setHoveredId("")}
+      aria-label="Mapa interactivo de Europa"
+    />
+  );
 }
 
 function drawBackplate(stage: Container) {
@@ -170,13 +201,20 @@ function drawBackplate(stage: Container) {
   }
   stage.addChild(sea);
 
-  drawRegionPatch(stage, [140, 505, 255, 390, 430, 370, 500, 500, 435, 640, 260, 665], 0xd8c17f, 0.45);
-  drawRegionPatch(stage, [440, 275, 690, 170, 830, 340, 760, 585, 560, 605, 445, 485], 0xbecf7c, 0.42);
-  drawRegionPatch(stage, [210, 665, 460, 700, 810, 750, 825, 825, 395, 820, 185, 780], 0xdf9b65, 0.38);
+  drawRegionPatch(stage, [95, 280, 245, 210, 380, 330, 335, 505, 175, 565, 95, 455], 0x62a8dc, 0.42);
+  drawRegionPatch(stage, [335, 115, 705, 95, 710, 300, 470, 335, 340, 260], 0x8cc56f, 0.42);
+  drawRegionPatch(stage, [330, 345, 610, 300, 690, 540, 510, 650, 340, 540], 0xe5b955, 0.38);
+  drawRegionPatch(stage, [680, 300, 890, 320, 900, 680, 720, 690, 675, 520], 0xd75b4b, 0.4);
+  drawRegionPatch(stage, [160, 590, 470, 655, 835, 690, 850, 840, 230, 845, 145, 750], 0xd8894e, 0.38);
 
   addMapLabel(stage, "ATLANTIC", 215, 215, 0x5e503c, 17);
   addMapLabel(stage, "EUROPA", 480, 205, 0x614126, 24);
   addMapLabel(stage, "MEDITERRANEO", 455, 760, 0x5e503c, 16);
+  addMapLabel(stage, "OCCIDENTE +3", 225, 500, 0x284f70, 15);
+  addMapLabel(stage, "NORTE +2", 585, 115, 0x315b34, 15);
+  addMapLabel(stage, "IMPERIAL +4", 535, 520, 0x6f5220, 15);
+  addMapLabel(stage, "ORIENTE +3", 805, 480, 0x742d28, 15);
+  addMapLabel(stage, "SUR +3", 510, 820, 0x75451f, 15);
   addCompass(stage);
 }
 
@@ -204,13 +242,13 @@ function drawConnections(stage: Container, G: EuropaGameState, selectedId: strin
 function drawTerritory(
   stage: Container,
   territory: TerritoryState,
-  state: { selected: boolean; targeted: boolean; own: boolean; actionable: boolean }
+  state: { selected: boolean; targeted: boolean; hovered: boolean; own: boolean; actionable: boolean }
 ) {
   const color = ownerColors[territory.ownerId ?? "neutral"];
   const terrain = terrainColors[territory.terrain];
-  const radius = territory.isCapital ? 27 : 21;
-  const pulseSize = state.selected || state.targeted ? 2 : 0;
-  const border = state.targeted ? 0x7d251d : state.selected ? 0xffffff : state.own ? 0xf3d59c : 0x5f4630;
+  const radius = territory.isCapital ? 34 : 27;
+  const pulseSize = state.selected || state.targeted || state.hovered ? 3 : 0;
+  const border = state.targeted ? 0x7d251d : state.selected ? 0xffffff : state.hovered ? 0x101010 : state.own ? 0xf3d59c : 0x5f4630;
 
   const halo = new Graphics();
   halo.beginFill(color, state.selected || state.targeted ? 0.26 : 0.08);
@@ -251,7 +289,7 @@ function drawTerritory(
   stage.addChild(shadow);
 
   const node = new Graphics();
-  node.lineStyle(state.selected || state.targeted ? 4 : 2, border, 0.98);
+  node.lineStyle(state.selected || state.targeted || state.hovered ? 5 : 3, border, 0.98);
   node.beginFill(color, territory.ownerId ? 0.9 : 0.62);
   node.drawCircle(territory.x, territory.y, radius);
   node.endFill();
@@ -266,13 +304,13 @@ function drawTerritory(
     stage.addChild(actionRing);
   }
 
-  const troops = new Text(String(territory.troops), new TextStyle({ fill: 0xffffff, fontSize: 17, fontWeight: "800", stroke: 0x1d120b, strokeThickness: 3 }));
+  const troops = new Text(String(territory.troops), new TextStyle({ fill: 0xffffff, fontSize: territory.isCapital ? 22 : 19, fontWeight: "900", stroke: 0x1d120b, strokeThickness: 4 }));
   troops.anchor.set(0.5);
   troops.x = territory.x;
   troops.y = territory.y - 2;
   stage.addChild(troops);
 
-  const label = new Text(territory.name, new TextStyle({ fill: state.selected ? 0x3b2115 : 0x4d3526, fontSize: territory.isCapital ? 12 : 11, fontWeight: territory.isCapital ? "800" : "700", stroke: 0xf0ddaf, strokeThickness: 2 }));
+  const label = new Text(territory.name, new TextStyle({ fill: state.selected || state.hovered ? 0x28160e : 0x4d3526, fontSize: territory.isCapital ? 13 : 12, fontWeight: territory.isCapital ? "900" : "800", stroke: 0xf0ddaf, strokeThickness: 3 }));
   label.anchor.set(0.5, 0);
   label.x = territory.x;
   label.y = territory.y + radius + 5;

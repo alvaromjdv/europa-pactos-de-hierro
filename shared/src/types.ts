@@ -26,6 +26,7 @@ export type MatchSettings = {
 export type TerritoryDefinition = {
   id: string;
   name: string;
+  region: string;
   x: number;
   y: number;
   terrain: Terrain;
