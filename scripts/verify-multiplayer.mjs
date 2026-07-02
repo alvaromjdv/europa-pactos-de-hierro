@@ -120,6 +120,10 @@ try {
   }
 
   await pageA.goto(frontendUrl, { waitUntil: "networkidle" });
+  await pageA.getByRole("button", { name: "Como jugar" }).click();
+  await pageA.getByRole("dialog", { name: "Juega como en un tablero de conquista" }).waitFor();
+  await pageA.getByRole("heading", { name: "Refuerza" }).waitFor();
+  await pageA.getByRole("button", { name: "Entendido" }).click();
   await pageA.getByLabel("Nombre").fill("Alice");
   await pageA.getByRole("button", { name: "Crear partida" }).click();
   try {
@@ -136,7 +140,7 @@ try {
 
   await pageB.goto(`${frontendUrl}/?join=${matchID}`, { waitUntil: "networkidle" });
   await pageB.getByLabel("Nombre").fill("Bob");
-  await pageB.getByRole("button", { name: "Unirse" }).click();
+  await pageB.getByRole("button", { name: "Unirse con codigo" }).click();
   await pageB.locator(".game-shell canvas").waitFor({ timeout: 15000 });
 
   await waitForText(pageA, "Tu turno");

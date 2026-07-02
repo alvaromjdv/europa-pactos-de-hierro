@@ -15,6 +15,7 @@
     "build": "npm --workspaces run build",
     "test": "npm --workspace @europa/shared test",
     "test:e2e": "node scripts/verify-multiplayer.mjs",
+    "test:visual": "node scripts/verify-ui-screenshots.mjs",
     "validate": "npm run test && npm --workspace @europa/shared run build && npm --workspace @europa/server run build && npm --workspace @europa/frontend run build",
     "start:server": "npm --workspace @europa/server run start",
     "start:frontend": "npm --workspace @europa/frontend run preview"

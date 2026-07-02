@@ -566,7 +566,8 @@ h2 {
   backdrop-filter: blur(10px);
 }
 
-.victory-modal {
+.victory-modal,
+.tutorial-modal {
   width: min(520px, 100%);
   display: grid;
   gap: 1rem;
@@ -577,8 +578,52 @@ h2 {
   box-shadow: 0 28px 100px rgba(0, 0, 0, 0.55);
 }
 
-.victory-modal h2 {
+.victory-modal h2,
+.tutorial-modal h2 {
   font-size: 1.8rem;
+}
+
+.tutorial-modal {
+  width: min(860px, 100%);
+}
+
+.tutorial-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.tutorial-grid article {
+  display: grid;
+  gap: 0.45rem;
+  min-height: 190px;
+  border: 1px solid rgba(255, 199, 120, 0.22);
+  border-radius: 8px;
+  padding: 0.85rem;
+  background: rgba(16, 18, 18, 0.74);
+}
+
+.tutorial-grid span {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(255, 199, 120, 0.5);
+  border-radius: 999px;
+  color: #2c1f12;
+  background: #ffd08a;
+  font-weight: 900;
+}
+
+.tutorial-grid h3 {
+  margin: 0;
+  color: #fff0d6;
+  font-size: 1rem;
+}
+
+.tutorial-grid p {
+  color: #cbb79d;
+  font-size: 0.88rem;
 }
 
 .capital-table {
@@ -703,5 +748,9 @@ h2 {
 
   .map-frame {
     min-height: 460px;
+  }
+
+  .tutorial-grid {
+    grid-template-columns: 1fr;
   }
 }

@@ -24,6 +24,7 @@ export function App({ serverUrl, GameClient }: AppProps) {
   const [session, setSession] = useState<Session | null>(null);
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
 
   async function withLobby(action: () => Promise<Session>) {
     if (!playerName.trim()) {
@@ -80,11 +81,14 @@ export function App({ serverUrl, GameClient }: AppProps) {
         <div>
           <p className="eyebrow">Tablero online de conquista</p>
           <h1>Europa: Pactos de Hierro</h1>
-          <p className="subtitle">Crea una partida, comparte el codigo y conquista capitales por turnos: refuerza, ataca y fortifica.</p>
+          <p className="subtitle">Crea una partida, comparte el codigo y conquista capitales por turnos: refuerza, ataca, fortifica y protege tus fronteras.</p>
         </div>
 
         <section className="lobby-guide">
-          <p className="eyebrow">Como se gana</p>
+          <div className="split">
+            <p className="eyebrow">Como se gana</p>
+            <button className="icon-button" type="button" onClick={() => setShowTutorial(true)}>Como jugar</button>
+          </div>
           <div className="turn-guide">
             <div className="guide-row active"><span>1</span><p>Controla capitales enemigas y protege las tuyas.</p></div>
             <div className="guide-row"><span>2</span><p>Usa tropas para atacar territorios adyacentes.</p></div>
@@ -169,14 +173,55 @@ export function App({ serverUrl, GameClient }: AppProps) {
               })
             }
           >
-            Unirse
+            Unirse con codigo
           </button>
         </div>
 
         <p className="small">Servidor: {serverUrl || "Netlify"} - Juego: {GAME_NAME}</p>
         {status && <p className="status">{status}</p>}
       </section>
+      {showTutorial && <TutorialModal onClose={() => setShowTutorial(false)} />}
     </main>
+  );
+}
+
+function TutorialModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="victory-backdrop" role="dialog" aria-modal="true" aria-labelledby="tutorial-title">
+      <section className="tutorial-modal">
+        <div className="split">
+          <div>
+            <p className="eyebrow">Tutorial de 60 segundos</p>
+            <h2 id="tutorial-title">Juega como en un tablero de conquista</h2>
+          </div>
+          <button className="icon-button" type="button" onClick={onClose} aria-label="Cerrar tutorial">Cerrar</button>
+        </div>
+        <div className="tutorial-grid">
+          <article>
+            <span>1</span>
+            <h3>Refuerza</h3>
+            <p>Elige un territorio propio y recluta tropas. Las capitales y fronteras son los mejores puntos de salida.</p>
+          </article>
+          <article>
+            <span>2</span>
+            <h3>Mueve</h3>
+            <p>Recoloca tropas entre territorios propios conectados. Deja siempre una tropa defendiendo el origen.</p>
+          </article>
+          <article>
+            <span>3</span>
+            <h3>Ataca</h3>
+            <p>Selecciona un territorio propio con tropas y despues un enemigo adyacente. El terreno puede dar defensa extra.</p>
+          </article>
+          <article>
+            <span>4</span>
+            <h3>Fortifica</h3>
+            <p>Marca una posicion clave, termina la fase y espera al rival. Ganas por capitales o por puntos de poder.</p>
+          </article>
+        </div>
+        <p className="phase-help">Consejo rapido: primero haz clic en tu territorio de origen y luego en el destino conectado. Las acciones importantes nunca se ejecutan solo al pasar el raton.</p>
+        <button className="primary wide" type="button" onClick={onClose}>Entendido</button>
+      </section>
+    </div>
   );
 }
 

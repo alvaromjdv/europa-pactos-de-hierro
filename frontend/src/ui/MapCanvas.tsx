@@ -41,6 +41,9 @@ const terrainColors: Record<TerritoryState["terrain"], number> = {
 
 export function MapCanvas({ G, selectedId, targetId, playerID, phase, effect, onSelect }: MapCanvasProps) {
   const hostRef = useRef<HTMLDivElement>(null);
+  const appRef = useRef<Application | null>(null);
+  const mapLayerRef = useRef<Container | null>(null);
+  const effectLayerRef = useRef<Container | null>(null);
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
 
@@ -72,6 +75,7 @@ export function MapCanvas({ G, selectedId, targetId, playerID, phase, effect, on
     });
     app.ticker.maxFPS = 30;
     host.appendChild(app.view as HTMLCanvasElement);
+    appRef.current = app;
 
     const stage = new Container();
     stage.eventMode = "passive";
@@ -86,54 +90,61 @@ export function MapCanvas({ G, selectedId, targetId, playerID, phase, effect, on
     effectLayer.eventMode = "none";
     stage.addChild(mapLayer);
     stage.addChild(effectLayer);
+    mapLayerRef.current = mapLayer;
+    effectLayerRef.current = effectLayer;
 
-    let hoveredId = "";
-    let pulse = 0;
-
-    const drawMap = () => {
-      mapLayer.removeChildren();
-      drawBackplate(mapLayer);
-      drawConnections(mapLayer, G, selectedId, targetId);
-      for (const territory of Object.values(G.territories)) {
-        drawTerritory(
-          mapLayer,
-          territory,
-          {
-            selected: territory.id === selectedId,
-            targeted: territory.id === targetId,
-            hovered: territory.id === hoveredId,
-            own: Boolean(playerID && territory.ownerId === playerID),
-            actionable: isActionable(phase, territory, playerID),
-            pulse
-          },
-          onSelectRef.current,
-          (id) => {
-            hoveredId = id;
-            drawMap();
-          }
-        );
-      }
+    return () => {
+      appRef.current = null;
+      mapLayerRef.current = null;
+      effectLayerRef.current = null;
+      app.destroy(true, { children: true, texture: true, baseTexture: true });
     };
+  }, []);
 
+  useEffect(() => {
+    const mapLayer = mapLayerRef.current;
+    if (!mapLayer) return;
+
+    mapLayer.removeChildren();
+    drawBackplate(mapLayer);
+    drawConnections(mapLayer, G, selectedId, targetId);
+    for (const territory of Object.values(G.territories)) {
+      drawTerritory(
+        mapLayer,
+        territory,
+        {
+          selected: territory.id === selectedId,
+          targeted: territory.id === targetId,
+          own: Boolean(playerID && territory.ownerId === playerID),
+          actionable: isActionable(phase, territory, playerID)
+        }
+      );
+    }
+  }, [G, selectedId, targetId, playerID, phase]);
+
+  useEffect(() => {
+    const app = appRef.current;
+    const effectLayer = effectLayerRef.current;
+    if (!app || !effectLayer) return;
+
+    let pulse = 0;
     const drawEffectLayer = () => {
       effectLayer.removeChildren();
       drawEffect(effectLayer, G, effect, pulse);
     };
-
     const tickEffect = () => {
       pulse += 0.08;
       drawEffectLayer();
     };
 
-    drawMap();
     drawEffectLayer();
     if (effect) app.ticker.add(tickEffect);
 
     return () => {
-      app.ticker.remove(tickEffect);
-      app.destroy(true, { children: true, texture: true, baseTexture: true });
+      app.ticker?.remove(tickEffect);
+      effectLayer.removeChildren();
     };
-  }, [G, selectedId, targetId, playerID, phase, effect]);
+  }, [G, effect]);
 
   return <div className="map-frame" ref={hostRef} onPointerDown={handleCanvasPointer} aria-label="Mapa interactivo de Europa" />;
 }
@@ -193,18 +204,16 @@ function drawConnections(stage: Container, G: EuropaGameState, selectedId: strin
 function drawTerritory(
   stage: Container,
   territory: TerritoryState,
-  state: { selected: boolean; targeted: boolean; hovered: boolean; own: boolean; actionable: boolean; pulse: number },
-  onSelect: (id: string) => void,
-  onHover: (id: string) => void
+  state: { selected: boolean; targeted: boolean; own: boolean; actionable: boolean }
 ) {
   const color = ownerColors[territory.ownerId ?? "neutral"];
   const terrain = terrainColors[territory.terrain];
   const radius = territory.isCapital ? 27 : 21;
-  const pulseSize = (state.selected || state.targeted || state.hovered) ? Math.sin(state.pulse) * 2.5 : 0;
-  const border = state.targeted ? 0x7d251d : state.selected ? 0xffffff : state.hovered ? 0xffd08a : state.own ? 0xf3d59c : 0x5f4630;
+  const pulseSize = state.selected || state.targeted ? 2 : 0;
+  const border = state.targeted ? 0x7d251d : state.selected ? 0xffffff : state.own ? 0xf3d59c : 0x5f4630;
 
   const halo = new Graphics();
-  halo.beginFill(color, state.selected || state.targeted ? 0.26 : state.hovered ? 0.2 : 0.08);
+  halo.beginFill(color, state.selected || state.targeted ? 0.26 : 0.08);
   halo.drawCircle(territory.x, territory.y, radius + 13 + pulseSize);
   halo.endFill();
   stage.addChild(halo);
@@ -242,17 +251,12 @@ function drawTerritory(
   stage.addChild(shadow);
 
   const node = new Graphics();
-  node.lineStyle(state.selected || state.targeted || state.hovered ? 4 : 2, border, 0.98);
+  node.lineStyle(state.selected || state.targeted ? 4 : 2, border, 0.98);
   node.beginFill(color, territory.ownerId ? 0.9 : 0.62);
   node.drawCircle(territory.x, territory.y, radius);
   node.endFill();
   node.lineStyle(1, 0xffffff, 0.28);
   node.drawCircle(territory.x - 4, territory.y - 5, Math.max(5, radius - 9));
-  node.eventMode = "static";
-  node.cursor = "pointer";
-  node.on("pointerdown", () => onSelect(territory.id));
-  node.on("pointerover", () => onHover(territory.id));
-  node.on("pointerout", () => onHover(""));
   stage.addChild(node);
 
   if (state.actionable) {
@@ -268,7 +272,7 @@ function drawTerritory(
   troops.y = territory.y - 2;
   stage.addChild(troops);
 
-  const label = new Text(territory.name, new TextStyle({ fill: state.hovered || state.selected ? 0x3b2115 : 0x4d3526, fontSize: territory.isCapital ? 12 : 11, fontWeight: territory.isCapital ? "800" : "700", stroke: 0xf0ddaf, strokeThickness: 2 }));
+  const label = new Text(territory.name, new TextStyle({ fill: state.selected ? 0x3b2115 : 0x4d3526, fontSize: territory.isCapital ? 12 : 11, fontWeight: territory.isCapital ? "800" : "700", stroke: 0xf0ddaf, strokeThickness: 2 }));
   label.anchor.set(0.5, 0);
   label.x = territory.x;
   label.y = territory.y + radius + 5;

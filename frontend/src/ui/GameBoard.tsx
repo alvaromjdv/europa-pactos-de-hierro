@@ -278,19 +278,6 @@ export function GameBoard({ G, ctx, moves, playerID, matchID, isActive, syncStat
             <p className="small">Duracion {G.settings.duration} - max {G.settings.maxTurns} turnos</p>
           </section>
 
-          <section className="panel-block objective-card">
-            <p className="eyebrow">Objetivo</p>
-            <h2>Conquista {G.settings.targetCapitals} capitales o alcanza {G.settings.powerTarget} poder</h2>
-            <div className="turn-guide">
-              {turnSteps.map((step, index) => (
-                <div className={`guide-row ${G.phase === step.phase ? "active" : ""}`} key={step.phase}>
-                  <span>{index + 1}</span>
-                  <p><strong>{step.label}.</strong> {step.text}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-
           <div className="territory-stack">
             <TerritoryPanel title="Origen" territory={selected} active />
             <TerritoryPanel title="Destino" territory={target} />
@@ -310,6 +297,19 @@ export function GameBoard({ G, ctx, moves, playerID, matchID, isActive, syncStat
             <button className="primary wide" aria-label="Terminar fase" disabled={!isActive} onClick={() => moves.endPhase()}>
               Pasar a {phaseLabels[nextPhaseName(G.phase)]}
             </button>
+          </section>
+
+          <section className="panel-block objective-card">
+            <p className="eyebrow">Objetivo</p>
+            <h2>Conquista {G.settings.targetCapitals} capitales o alcanza {G.settings.powerTarget} poder</h2>
+            <div className="turn-guide">
+              {turnSteps.map((step, index) => (
+                <div className={`guide-row ${G.phase === step.phase ? "active" : ""}`} key={step.phase}>
+                  <span>{index + 1}</span>
+                  <p><strong>{step.label}.</strong> {step.text}</p>
+                </div>
+              ))}
+            </div>
           </section>
 
           <section className="panel-block cards-card">
